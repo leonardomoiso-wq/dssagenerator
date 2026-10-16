@@ -4,30 +4,33 @@ import react from '@vitejs/plugin-react';
 
 const FONT_EXT = /\.(woff2?|otf|ttf)$/i;
 
-/** Elenco dei caratteri presenti in public/fonts, letto dal compositore all'avvio. */
-function fontIndex(): Plugin {
+/**
+ * Elenchi letti dal compositore all'avvio: i caratteri in public/fonts e i modelli della squadra
+ * in public/libreria. In sviluppo sono sempre aggiornati; nella build si fissano al momento.
+ */
+function folderIndex(dir: string, test: RegExp): Plugin {
   const list = () => {
     try {
-      return readdirSync('public/fonts').filter((f) => FONT_EXT.test(f));
+      return readdirSync(`public/${dir}`).filter((f) => test.test(f) && f !== 'index.json');
     } catch {
       return [];
     }
   };
   return {
-    name: 'dssa-font-index',
+    name: `dssa-index-${dir}`,
     configureServer(server) {
-      server.middlewares.use('/fonts/index.json', (_req, res) => {
+      server.middlewares.use(`/${dir}/index.json`, (_req, res) => {
         res.setHeader('content-type', 'application/json');
         res.end(JSON.stringify(list()));
       });
     },
     generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'fonts/index.json', source: JSON.stringify(list()) });
+      this.emitFile({ type: 'asset', fileName: `${dir}/index.json`, source: JSON.stringify(list()) });
     },
   };
 }
 
 export default defineConfig({
-  plugins: [react(), fontIndex()],
+  plugins: [react(), folderIndex('fonts', FONT_EXT), folderIndex('libreria', /\.json$/i)],
   base: './',
 });

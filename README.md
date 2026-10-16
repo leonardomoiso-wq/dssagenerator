@@ -60,6 +60,15 @@ simboli e le rotazioni di 90° delle composizioni cadono sui battiti. La traccia
 AAC dalla riga di comando e da Chrome/Edge che lo supportano, altrimenti Opus con avviso. Nel video
 della serie la musica scorre continua su tutte le slide.
 
+**Modelli della casa**: «+ Salva come modello» conserva il progetto (modello, testi, colori, tempi,
+ritocchi di ogni formato, serie; fotografie e musica solo se richiesto) con nome, descrizione e
+miniatura. I propri modelli restano nel browser: si aprono con un clic, si rinominano, si
+sostituiscono con il progetto corrente, si eliminano, si esportano in .json. I **modelli della
+squadra** sono i file .json in `public/libreria/` (vedi `public/libreria/LEGGIMI.md`): chi ne
+aggiunge uno al repository lo rende disponibile a tutti. Ne sono inclusi sei di partenza (Open day,
+Libro del mese, Sessione di laurea, I 7 ambiti, Chiusura dei video, Carosello a tre slide). Un modello
+si esporta anche da riga di comando: `npm run render -- --project public/libreria/open-day-story.json`.
+
 **Più formati in un clic**: «Più formati» apre un riepilogo con l'anteprima del progetto in ogni
 formato, gli avvisi del manuale formato per formato e l'indicazione di dove ci sono ritocchi propri.
 Si scelgono i formati (scorciatoie Instagram, LinkedIn, Tutti) e cosa esportare: video MP4,

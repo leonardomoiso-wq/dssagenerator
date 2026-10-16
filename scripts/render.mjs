@@ -35,6 +35,13 @@ if (!args.project && !args.composition && !args.list) {
 }
 
 let project = args.project ? JSON.parse(readFileSync(resolve(args.project), 'utf8')) : null;
+// Un modello della libreria (public/libreria/*.json) contiene il progetto in «project».
+if (project?.kind === 'dssa-modello') project = project.project;
+if (project?.serie) {
+  // Allinea la slide attiva all'elenco delle slide, come fa il compositore al salvataggio.
+  const s = project.serie;
+  s.slides[s.active] = { ...s.slides[s.active], composition: project.composition, props: project.props, duration: project.duration };
+}
 
 // --- Server statico della build ---
 const dist = join(root, 'dist');

@@ -7,6 +7,7 @@ import { renderSeriesFrame, seriesTimeline, slideCount, slideOffset, slideProjec
 import { envelope } from './engine/audio';
 import { AudioPanel } from './ui/AudioPanel';
 import { MultiExport } from './ui/MultiExport';
+import { Library } from './ui/Library';
 import { SeriesBar } from './ui/SeriesBar';
 import { clearTextCaches } from './engine/text';
 import { clearMarkCaches } from './brand/draw';
@@ -544,6 +545,16 @@ export function App() {
       </header>
 
       <aside className="left">
+        <Library
+          project={project}
+          onApply={(p, name) => {
+            setProject(p);
+            setSelected(null);
+            setFrame(1e9);
+            setNotice(`Aperto il modello «${name}». Con ↶ torni al progetto di prima.`);
+          }}
+          onNotice={setNotice}
+        />
         {groups.map(([cat, list]) => (
           <section key={cat}>
             <h3>{cat === 'Feed' ? 'Composizioni del feed' : cat === 'Video' ? 'Video e sequenze' : 'Da zero'}</h3>

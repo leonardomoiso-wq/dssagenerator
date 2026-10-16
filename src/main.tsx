@@ -3,6 +3,7 @@ import { App } from './App';
 import { getFormat } from './brand/tokens';
 import { fontState, loadFonts } from './engine/fonts';
 import { exportCarousel } from './engine/export';
+import { createModel } from './engine/library';
 import { durationInFrames, preloadImages, renderFrame } from './engine/render';
 import { renderSeriesFrame, seriesTimeline, slideCount, slideProject, stillFrame, type Timeline } from './engine/series';
 import { defaultsOf, type Project } from './engine/types';
@@ -41,6 +42,8 @@ if (params.has('headless')) {
       timeOffset = tl ? 0 : audioOffset;
       return { width: fmt.width, height: fmt.height, fps: p.fps, frames: tl ? tl.total : durationInFrames(flat), slides: slideCount(p), audioOffset, still: stillFrame(flat) };
     },
+    /** Crea un modello della casa (per preparare la libreria della squadra da script). */
+    model: (p: Project, meta: { name: string; description: string; author?: string }) => createModel(p, { ...meta, images: false, audio: false }),
     /** Carosello come ZIP di PNG o PDF, in base64. */
     async carousel(kind: 'zip' | 'pdf') {
       if (!project) throw new Error('Nessun progetto');
