@@ -141,3 +141,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .el-list li span { flex: 1; }
 .el-list em { font-style: normal; font-size: 11px; color: var(--viola); }
 .el-props { border-left: 3px solid var(--viola); padding-left: 10px; margin-bottom: 8px; }
+
+.brand { display: flex; align-items: center; gap: 6px; }
+.history { display: flex; gap: 6px; margin-left: 18px; }
+.history .btn.round { width: 36px; height: 36px; font-size: 18px; color: #fff; border-color: #4a4a55; }
+.history .btn:disabled { opacity: 0.3; }

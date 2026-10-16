@@ -44,6 +44,10 @@ Maiusc durante il trascinamento blocca la direzione, i bordi si agganciano ai ma
 post può avere aggiustamenti diversi in versione Story o LinkedIn. Con le regole del manuale attive il
 compositore avvisa se un testo esce dai margini sicuri o viene scalato fuori dalla scala tipografica.
 
+**Annulla e ripeti**: le frecce ↶ ↷ in alto (o Ctrl/Cmd+Z e Ctrl/Cmd+Maiusc+Z) tornano indietro e
+avanti tra le modifiche. Un trascinamento intero, una serie di spostamenti con le frecce o una
+digitazione continua contano come un solo passo.
+
 **Elementi in più**: a ogni modello si possono aggiungere livelli (testo, simbolo, forma, marchio,
 etichetta, immagine, materia iridescente, freccia) disegnati sopra la composizione. Nella composizione
 libera i livelli si trascinano direttamente sull'anteprima.

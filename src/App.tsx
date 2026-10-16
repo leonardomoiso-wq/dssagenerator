@@ -52,6 +52,53 @@ export function App() {
   const [hover, setHover] = useState<string | null>(null);
   const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
   const [cursor, setCursor] = useState('default');
+  // --- Cronologia: annulla e ripeti ---
+  const history = useRef({ past: [] as Project[], future: [] as Project[], last: project, lastTime: 0, skip: false, dragPushed: false });
+  const [, setHistoryTick] = useState(0);
+  useEffect(() => {
+    const h = history.current;
+    if (project === h.last) return;
+    if (h.skip) {
+      h.skip = false;
+      h.last = project;
+      return;
+    }
+    const now = performance.now();
+    // Un trascinamento intero o una digitazione continua sono un solo passo.
+    const push = drag.current ? !h.dragPushed : now - h.lastTime > 700;
+    if (push) {
+      h.past.push(h.last);
+      if (h.past.length > 150) h.past.shift();
+      h.future = [];
+      if (drag.current) h.dragPushed = true;
+      setHistoryTick((t) => t + 1);
+    }
+    h.lastTime = now;
+    h.last = project;
+  }, [project]);
+  const undo = useCallback(() => {
+    const h = history.current;
+    const prev = h.past.pop();
+    if (!prev) return;
+    h.future.push(h.last);
+    h.skip = true;
+    h.lastTime = 0;
+    setProject(prev);
+    setHistoryTick((t) => t + 1);
+  }, []);
+  const redo = useCallback(() => {
+    const h = history.current;
+    const next = h.future.pop();
+    if (!next) return;
+    h.past.push(h.last);
+    h.skip = true;
+    h.lastTime = 0;
+    setProject(next);
+    setHistoryTick((t) => t + 1);
+  }, []);
+  const canUndo = history.current.past.length > 0;
+  const canRedo = history.current.future.length > 0;
+
   const drag = useRef<{
     id: string;
     mode: 'move' | 'scale';
@@ -210,6 +257,15 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
+        // Nei campi di testo vale l'annulla del campo stesso.
+        if (t.closest('input[type=text], input:not([type]), textarea')) return;
+        e.preventDefault();
+        if (e.key === 'y' || e.shiftKey) redo();
+        else undo();
+        return;
+      }
       if (t.closest('input, textarea, select')) return;
       if (selected && /^Arrow/.test(e.code)) {
         e.preventDefault();
@@ -254,6 +310,7 @@ export function App() {
     return Math.abs(x - (b.x + b.w)) < 12 * ratio && Math.abs(y - (b.y + b.h)) < 12 * ratio;
   };
   const onPointerDown = (e: React.PointerEvent) => {
+    history.current.dragPushed = false;
     const { x, y, ratio } = toFormat(e);
     const sel = elements.find((el) => el.id === selected && !el.hidden);
     const scaling = onHandle(sel, x, y, ratio);
@@ -310,6 +367,7 @@ export function App() {
     }
   };
   const onPointerUp = () => {
+    history.current.lastTime = 0;
     drag.current = null;
     setSnapLines([]);
   };
@@ -392,6 +450,14 @@ export function App() {
       <header className="top">
         <div className="brand">
           <b>DSSA</b> <span>Compositore</span>
+          <div className="history">
+            <button className="btn round ghost" onClick={undo} disabled={!canUndo} title="Annulla (Ctrl/Cmd+Z)" aria-label="Annulla">
+              ↶
+            </button>
+            <button className="btn round ghost" onClick={redo} disabled={!canRedo} title="Ripeti (Ctrl/Cmd+Maiusc+Z)" aria-label="Ripeti">
+              ↷
+            </button>
+          </div>
         </div>
         <div className="actions">
           <button className={'btn ghost' + (fontsMissing ? ' warn' : '')} onClick={() => setShowFonts(true)}>
