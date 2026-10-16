@@ -60,6 +60,12 @@ simboli e le rotazioni di 90° delle composizioni cadono sui battiti. La traccia
 AAC dalla riga di comando e da Chrome/Edge che lo supportano, altrimenti Opus con avviso. Nel video
 della serie la musica scorre continua su tutte le slide.
 
+**Più formati in un clic**: «Più formati» apre un riepilogo con l'anteprima del progetto in ogni
+formato, gli avvisi del manuale formato per formato e l'indicazione di dove ci sono ritocchi propri.
+Si scelgono i formati (scorciatoie Instagram, LinkedIn, Tutti) e cosa esportare: video MP4,
+immagine PNG e, per le serie, il carosello (PNG .zip per Instagram, PDF per LinkedIn). Tutto arriva
+in un unico .zip.
+
 **Annulla e ripeti**: le frecce ↶ ↷ in alto (o Ctrl/Cmd+Z e Ctrl/Cmd+Maiusc+Z) tornano indietro e
 avanti tra le modifiche. Un trascinamento intero, una serie di spostamenti con le frecce o una
 digitazione continua contano come un solo passo.
@@ -103,6 +109,9 @@ npm run render -- --project progetto.json --png 90 --out copertina.png
 npm run render -- --project serie.json --out serie.mp4             # serie: tutte le slide in sequenza
 npm run render -- --project serie.json --slide 2 --out slide2.mp4  # una sola slide
 npm run render -- --project serie.json --carosello zip             # PNG del carosello (o pdf)
+npm run render -- --project progetto.json --formati instagram --out esportazioni   # o linkedin, tutti
+npm run render -- --project progetto.json --formati ig-post,li-landscape --png      # immagini fisse
+npm run render -- --project serie.json --formati tutti --carosello                  # zip o pdf secondo la piattaforma
 ```
 
 Opzioni: `--no-audio` (esporta senza musica), `--fps`, `--duration`, `--crf` (qualità, predefinito 16), `--props valori.json` (con

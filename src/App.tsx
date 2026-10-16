@@ -6,6 +6,7 @@ import { durationInFrames, renderFrame } from './engine/render';
 import { renderSeriesFrame, seriesTimeline, slideCount, slideOffset, slideProject } from './engine/series';
 import { envelope } from './engine/audio';
 import { AudioPanel } from './ui/AudioPanel';
+import { MultiExport } from './ui/MultiExport';
 import { SeriesBar } from './ui/SeriesBar';
 import { clearTextCaches } from './engine/text';
 import { clearMarkCaches } from './brand/draw';
@@ -45,6 +46,7 @@ export function App() {
   const [quality, setQuality] = useState<keyof typeof QUALITY>('alta');
   const [codecOk, setCodecOk] = useState<boolean | null>(null);
   const [showFonts, setShowFonts] = useState(false);
+  const [showMulti, setShowMulti] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const memory = useRef(new Map<string, Props>());
   const abortRef = useRef<AbortController | null>(null);
@@ -532,6 +534,9 @@ export function App() {
             <option value="media">Qualità media</option>
             <option value="leggera">File leggero</option>
           </select>
+          <button className="btn ghost" onClick={() => (setPlaying(false), setShowMulti(true))} disabled={!!exporting} title="Lo stesso progetto in tutti i formati, in un unico .zip">
+            Più formati
+          </button>
           <button className="btn primary" onClick={() => doExport()} disabled={!!exporting} title={codecOk === false ? 'Questo browser non codifica H.264: il video uscirà in VP9. Per Instagram usa Chrome, Edge o npm run render.' : 'H.264, pronto per Instagram e LinkedIn'}>
             Esporta MP4{codecOk === false ? ' (VP9)' : ''}
           </button>
@@ -698,6 +703,7 @@ export function App() {
         </div>
       )}
 
+      {showMulti && <MultiExport project={project} onClose={() => setShowMulti(false)} onNotice={setNotice} />}
       {showFonts && <FontsDialog onClose={() => setShowFonts(false)} onNotice={setNotice} />}
 
       {notice && (

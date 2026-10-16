@@ -9,7 +9,7 @@
 // Richiede: ffmpeg nel PATH; Chromium (playwright install chromium) oppure Chrome
 // installato (--chrome) o un percorso in CHROME_PATH.
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -29,6 +29,7 @@ if (!args.project && !args.composition && !args.list) {
   npm run render -- --composition cifra [--props valori.json] [--format ig-story] [--out video.mp4]
   npm run render -- --project serie.json --carosello zip|pdf   (immagini del carosello)
   npm run render -- --project serie.json --slide 2             (una sola slide)
+  npm run render -- --project progetto.json --formati instagram|linkedin|tutti|ig-post,li-landscape --out cartella
   npm run render -- --list`);
   process.exit(1);
 }
@@ -117,14 +118,9 @@ if (!project) {
   const extra = args.props ? JSON.parse(readFileSync(resolve(args.props), 'utf8')) : {};
   project = { version: 1, composition: c.id, format: c.defaultFormat, fps: 30, duration: c.defaultDuration, speed: 1, strict: true, props: { ...c.props, ...extra } };
 }
-if (args.format) project.format = args.format;
 if (args.fps) project.fps = parseInt(args.fps, 10);
 if (args.duration) project.duration = parseFloat(args.duration);
 const slideOpt = args.slide !== undefined ? { slide: parseInt(args.slide, 10) - 1 } : {};
-const info = await page.evaluate(([p, o]) => window.__DSSA__.setProject(p, o), [project, slideOpt]);
-const out = resolve(args.out ?? (args.png !== undefined ? 'fotogramma.png' : `${project.composition}-${project.format}.mp4`));
-if (info.slides > 1) console.log(`Serie di ${info.slides} slide${args.slide !== undefined ? `: esporto la slide ${args.slide}` : ', in sequenza'}.`);
-console.log(`Composizione «${project.composition}», ${info.width} × ${info.height}, ${info.fps} fps, ${info.frames} fotogrammi.`);
 
 const warnings = new Set();
 const tempFiles = [];
@@ -135,22 +131,30 @@ const grab = async (i) => {
   return Buffer.from(r.data.split(',')[1], 'base64');
 };
 
-try {
+/** Esporta il progetto in un formato. */
+async function renderOne(proj, out) {
+  const info = await page.evaluate(([p, o]) => window.__DSSA__.setProject(p, o), [proj, slideOpt]);
+  if (info.slides > 1) console.log(`Serie di ${info.slides} slide${args.slide !== undefined ? `: esporto la slide ${args.slide}` : ', in sequenza'}.`);
+  console.log(`Composizione «${proj.composition}», formato ${proj.format}, ${info.width} × ${info.height}, ${info.fps} fps, ${info.frames} fotogrammi.`);
   if (args.carosello) {
-    const kind = args.carosello === 'pdf' ? 'pdf' : 'zip';
+    const kind = args.carosello === 'pdf' || (args.carosello === true && proj.format.startsWith('li')) ? 'pdf' : 'zip';
     const b64 = await page.evaluate((k) => window.__DSSA__.carousel(k), kind);
-    const file = args.out ? out : out.replace(/\.mp4$/, '.' + kind);
+    const file = out.replace(/\.(mp4|png|zip|pdf)$/, '') + '.' + kind;
     writeFileSync(file, Buffer.from(b64, 'base64'));
     console.log('Scritto', file);
-  } else if (args.png !== undefined) {
-    writeFileSync(out, await grab(parseInt(args.png, 10) || 0));
+    return;
+  }
+  if (args.png !== undefined) {
+    const n = args.png === true ? info.still : parseInt(args.png, 10) || 0;
+    writeFileSync(out, await grab(n));
     console.log('Scritto', out);
-  } else {
+    return;
+  }
     // Musica del progetto: stesso inviluppo dell'anteprima (volume, entrata, uscita).
     const seconds = info.frames / info.fps;
     const audioIn = [];
     const audioOut = [];
-    const track = project.audio;
+    const track = proj.audio;
     if (track?.src && !args['no-audio']) {
       const m = /^data:([^;]+);base64,(.*)$/s.exec(track.src);
       if (m) {
@@ -195,6 +199,27 @@ try {
     ff.stdin.end();
     await done;
     console.log(`\nScritto ${out} in ${((Date.now() - t) / 1000).toFixed(1)} s.`);
+}
+
+try {
+  if (args.formati) {
+    // Lo stesso progetto in più formati, ognuno con i suoi ritocchi.
+    const all = ['ig-post', 'ig-story', 'ig-reel-cover', 'ig-square', 'li-portrait', 'li-square', 'li-landscape'];
+    const ids = args.formati === true || args.formati === 'tutti' ? all : args.formati === 'instagram' ? all.filter((f) => f.startsWith('ig')) : args.formati === 'linkedin' ? all.filter((f) => f.startsWith('li')) : String(args.formati).split(',').map((x) => x.trim());
+    const dir = resolve(args.out ?? 'esportazioni');
+    mkdirSync(dir, { recursive: true });
+    const ext = args.png !== undefined ? 'png' : 'mp4';
+    for (const id of ids) {
+      if (!all.includes(id)) {
+        console.error(`Formato «${id}» sconosciuto. Formati: ${all.join(', ')}.`);
+        continue;
+      }
+      await renderOne({ ...project, format: id }, join(dir, `${project.composition}-${id}.${ext}`));
+    }
+  } else {
+    if (args.format) project.format = args.format;
+    const out = resolve(args.out ?? (args.png !== undefined ? 'fotogramma.png' : `${project.composition}-${project.format}.mp4`));
+    await renderOne(project, out);
   }
   if (warnings.size) console.log('Avvisi del manuale:\n- ' + [...warnings].join('\n- '));
 } finally {

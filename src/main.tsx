@@ -4,7 +4,7 @@ import { getFormat } from './brand/tokens';
 import { fontState, loadFonts } from './engine/fonts';
 import { exportCarousel } from './engine/export';
 import { durationInFrames, preloadImages, renderFrame } from './engine/render';
-import { renderSeriesFrame, seriesTimeline, slideCount, slideProject, type Timeline } from './engine/series';
+import { renderSeriesFrame, seriesTimeline, slideCount, slideProject, stillFrame, type Timeline } from './engine/series';
 import { defaultsOf, type Project } from './engine/types';
 import { COMPOSITIONS } from './templates';
 import './styles.css';
@@ -39,7 +39,7 @@ if (params.has('headless')) {
       // Scarto della slide nella serie, per far partire la musica dal punto giusto.
       const audioOffset = !single || slideCount(p) <= 1 ? 0 : seriesTimeline(p).starts[opts.slide ?? p.serie?.active ?? 0] / p.fps;
       timeOffset = tl ? 0 : audioOffset;
-      return { width: fmt.width, height: fmt.height, fps: p.fps, frames: tl ? tl.total : durationInFrames(flat), slides: slideCount(p), audioOffset };
+      return { width: fmt.width, height: fmt.height, fps: p.fps, frames: tl ? tl.total : durationInFrames(flat), slides: slideCount(p), audioOffset, still: stillFrame(flat) };
     },
     /** Carosello come ZIP di PNG o PDF, in base64. */
     async carousel(kind: 'zip' | 'pdf') {
