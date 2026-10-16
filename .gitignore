@@ -1,0 +1,7 @@
+node_modules
+dist
+out
+*.mp4
+# I caratteri Basier Circle e Wotfard sono commerciali: si installano in locale, non si versionano.
+public/fonts/*
+!public/fonts/LEGGIMI.md
