@@ -3,7 +3,8 @@ import { FORMATS, getFormat } from './brand/tokens';
 import { download, exportCarousel, exportMp4, exportPng, fileName, QUALITY, supportedCodec } from './engine/export';
 import { addFontFiles, clearStoredFonts, fontState, onFontsChange } from './engine/fonts';
 import { durationInFrames, renderFrame } from './engine/render';
-import { renderSeriesFrame, seriesTimeline, slideCount, slideOffset, slideProject } from './engine/series';
+import { renderSeriesFrame, seriesTimeline, slideCount, slideOffset, slideProject, stillFrame } from './engine/series';
+import { Timeline } from './ui/Timeline';
 import { envelope } from './engine/audio';
 import { AudioPanel } from './ui/AudioPanel';
 import { MultiExport } from './ui/MultiExport';
@@ -127,6 +128,29 @@ export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   if (!audioRef.current && typeof Audio !== 'undefined') audioRef.current = new Audio();
   const [muted, setMuted] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(true);
+  // Elementi per la timeline: quelli del fotogramma finale (ci sono tutti) più quelli correnti.
+  const [stillElements, setStillElements] = useState<PlacedElement[]>([]);
+  useEffect(() => {
+    if (timeline) return;
+    const id = setTimeout(() => {
+      const sp = slideProject(project);
+      const fmt = getFormat(sp.format);
+      const c = document.createElement('canvas');
+      c.width = fmt.width;
+      c.height = fmt.height;
+      const res = renderFrame(c.getContext('2d')!, sp, stillFrame(sp), { timeOffset: previewOffset });
+      setStillElements(res.elements);
+    }, 200);
+    return () => clearTimeout(id);
+  }, [project, timeline, previewOffset]);
+  const timelineElements = useMemo(() => {
+    const byId = new Map<string, PlacedElement>();
+    for (const e of [...stillElements, ...elements]) byId.set(e.id, { ...byId.get(e.id), ...e });
+    // Ordine del disegno: dall'elemento più in basso a quello più in alto.
+    const order = stillElements.map((e) => e.id);
+    return [...byId.values()].sort((a, b) => (order.indexOf(a.id) + 1 || 999) - (order.indexOf(b.id) + 1 || 999));
+  }, [stillElements, elements]);
   const auto = autoDuration(comp, project.props);
 
   // Ridisegno quando cambiano i caratteri.
@@ -607,7 +631,22 @@ export function App() {
           <label className="check small">
             <input type="checkbox" checked={guides} onChange={(e) => setGuides(e.target.checked)} /> Guide
           </label>
+          <label className="check small">
+            <input type="checkbox" checked={showTimeline} onChange={(e) => setShowTimeline(e.target.checked)} /> Timeline
+          </label>
         </div>
+        {!timeline && showTimeline && (
+          <Timeline
+            elements={timelineElements}
+            project={project}
+            setProject={setProject}
+            frame={frame}
+            total={total}
+            onSeek={(f) => (setPlaying(false), setFrame(f))}
+            selected={selected}
+            onSelect={setSelected}
+          />
+        )}
         <p className="source">{comp.source}</p>
         {error && <p className="error">Errore nel modello: {error}</p>}
         {warnings.length > 0 && (

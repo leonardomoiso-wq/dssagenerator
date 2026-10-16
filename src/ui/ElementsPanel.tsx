@@ -42,7 +42,7 @@ export function ElementsPanel({
         {list.map((e) => {
           const moved = !e.layer && (() => {
             const a = getAdjust(project, e.id);
-            return a.dx !== 0 || a.dy !== 0 || a.s !== 1;
+            return a.dx !== 0 || a.dy !== 0 || a.s !== 1 || !!a.dt;
           })();
           return (
             <li key={e.id} className={(e.id === selected ? 'on ' : '') + (e.hidden ? 'off' : '')} onClick={() => onSelect(e.id)}>
@@ -78,6 +78,16 @@ export function ElementsPanel({
               />
             </label>
           </div>
+          <label className="field">
+            <span className="label">Ritardo nel tempo (s)</span>
+            <input
+              type="number"
+              step={0.05}
+              value={adj.dt ?? 0}
+              onChange={(ev) => onChange((p) => setAdjust(p, sel.id, { ...adj, dt: Math.round((parseFloat(ev.target.value) || 0) * 100) / 100 }))}
+            />
+            <small className="help">Positivo: entra dopo; negativo: entra prima. Si regola anche trascinando la barra nella timeline.</small>
+          </label>
           <div className="row">
             <button className="btn small ghost" onClick={() => onChange((p) => setAdjust(p, sel.id, null))}>
               Rimetti com’era

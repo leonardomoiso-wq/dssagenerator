@@ -349,7 +349,9 @@ export function drawLayers(ctx: CanvasRenderingContext2D, f: FrameInfo, layers: 
     if (l.hidden) continue;
     ctx.save();
     try {
-      env.place(l.id, l.name, layerBox(ctx, f, l, env), () => drawLayer(ctx, f, l, env, out), 'livello');
+      const lp = l.props;
+      const time = { start: env.sec(lp.inizio ?? 0), end: env.sec((lp.inizio ?? 0) + (lp.durata ?? 0.7)), exit: lp.fine > 0 ? env.sec(lp.fine) : undefined };
+      env.place(l.id, l.name, layerBox(ctx, f, l, env), () => drawLayer(ctx, f, l, env, out), 'livello', time);
     } finally {
       ctx.restore();
     }

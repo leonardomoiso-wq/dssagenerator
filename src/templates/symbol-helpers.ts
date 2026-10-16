@@ -108,7 +108,9 @@ export function placeSymbol(
   name = 'simbolo',
   label = 'Simbolo',
 ) {
-  env.place(name, label, { x, y, w: size, h: size }, () => drawSymbol(ctx, id, x, y, size, fill, motion));
+  const n = typeof id === 'string' ? getSymbol(id).parts.length : id.length;
+  const time = motion && motion.anim !== 'nessuna' ? { start: motion.start, end: motion.start + (n - 1) * motion.stagger + motion.dur } : undefined;
+  env.place(name, label, { x, y, w: size, h: size }, (dt) => drawSymbol(ctx, id, x, y, size, fill, motion && { ...motion, frame: motion.frame - dt }), 'grafica', time);
 }
 
 /** Fine dell'ingresso del simbolo, in frame. */

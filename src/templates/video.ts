@@ -66,54 +66,56 @@ export const marchio: Composition = {
     const ease = getEasing(p.curva);
     const cap = (p.altezza ?? 120) * s;
     if (cap < 29 * s) env.warn('Logotipo sotto i 29 px dei modelli social.');
-    let markStart = start;
+    // Ogni elemento legge il suo tempo dentro il disegno: la timeline può spostarlo.
+    const per = env.sec(p.tempoSimbolo ?? 0.28);
+    const markStart = start + (p.simboli === 'sequenza' ? SYMBOLS.length * per : 0);
     // Sequenza dei sette simboli al centro.
     if (p.simboli === 'sequenza') {
-      const per = env.sec(p.tempoSimbolo ?? 0.28);
       const size = Math.min(f.width, f.height) * 0.42;
-      const i = Math.floor((f.frame - start) / per);
-      if (f.frame >= start && i < SYMBOLS.length) {
-        const local = (f.frame - start) - i * per;
-        const sym = SYMBOLS[i];
-        const fill: Fill = {
-          mode: p.riempimento,
-          color: ink,
-          iri: { style: p.simboloIri ?? 'raggiera', time: f.time, seed: i * 11, rays: 0.9 },
-        };
-        const pop = Easing.out(clamp(local / Math.max(1, per * 0.5)));
-        const sx = (f.width - size) / 2,
-          sy = (f.height - size) / 2;
-        env.place('sequenza', 'Sequenza dei simboli', { x: sx, y: sy, w: size, h: size }, () =>
-          drawParts(ctx, sym.parts, sx, sy, size, fill, undefined, { globalScale: 0.85 + 0.15 * pop }),
-        );
-      }
-      markStart = start + SYMBOLS.length * per;
+      const sx = (f.width - size) / 2,
+        sy = (f.height - size) / 2;
+      env.place(
+        'sequenza',
+        'Sequenza dei simboli',
+        { x: sx, y: sy, w: size, h: size },
+        () => {
+          const i = Math.floor((f.frame - start) / per);
+          if (f.frame < start || i >= SYMBOLS.length) return;
+          const local = f.frame - start - i * per;
+          const fill: Fill = { mode: p.riempimento, color: ink, iri: { style: p.simboloIri ?? 'raggiera', time: f.time, seed: i * 11, rays: 0.9 } };
+          const pop = Easing.out(clamp(local / Math.max(1, per * 0.5)));
+          drawParts(ctx, SYMBOLS[i].parts, sx, sy, size, fill, undefined, { globalScale: 0.85 + 0.15 * pop });
+        },
+        'grafica',
+        { start, end: markStart },
+      );
     }
-    if (f.frame < markStart) return;
-    const lf = f.frame - markStart;
     const a = 1 - out;
     // Marchio: le righe salgono dalla maschera una dopo l'altra.
-    ctx.save();
-    ctx.globalAlpha *= a;
     const conf: string = p.configurazione ?? 'lockup';
     const size = conf === 'logotipo' ? { w: logotypeWidth(ctx, cap), h: cap } : conf === 'monogramma' ? monogramSize(ctx, cap) : lockupSize(ctx, cap);
     const mw = size.w;
     const mh = size.h;
     const x = (f.width - mw) / 2;
     const yTop = (f.height - mh) / 2 - (p.simboli === 'fila' ? cap * 0.6 : 0);
-    const reveal = (i: number) => ease(clamp((lf - i * env.sec(0.12)) / env.sec(0.55)));
     env.place(
       'marchio',
       'Marchio',
       { x, y: yTop, w: mw, h: mh },
       () => {
+        const lf = f.frame - markStart;
+        if (lf < 0) return;
+        const reveal = (i: number) => ease(clamp((lf - i * env.sec(0.12)) / env.sec(0.55)));
+        ctx.save();
+        ctx.globalAlpha *= a;
         if (conf === 'logotipo') drawLogotypeReveal(ctx, x, yTop, cap, ink, reveal(0));
         else if (conf === 'monogramma') drawMonogram(ctx, x, yTop, cap, ink, [reveal(0), reveal(1)]);
         else drawLockup(ctx, x, yTop, cap, ink, [reveal(0), reveal(1), clamp((lf - env.sec(0.35)) / env.sec(0.7))]);
+        ctx.restore();
       },
       'marchio',
+      { start: markStart, end: markStart + env.sec(conf === 'lockup' ? 1.05 : 0.67) },
     );
-    ctx.restore();
     // Fila dei simboli.
     if (p.simboli === 'fila') {
       const n = SYMBOLS.length;
@@ -122,21 +124,34 @@ export const marchio: Composition = {
       const total = n * sz + (n - 1) * gap * sz;
       const sx = (f.width - total) / 2;
       const sy = yTop + mh + cap * 1.1;
-      env.place('fila', 'Fila dei simboli', { x: sx, y: sy, w: total, h: sz }, () => SYMBOLS.forEach((sym, i) => {
-        const fill: Fill = { mode: p.riempimento, color: ink, iri: { style: p.simboloIri ?? 'raggiera', time: f.time, seed: i * 11, rays: 0.9 } };
-        const m = { anim: 'assembla' as const, frame: f.frame, fps: f.fps, start: markStart + env.sec(0.5 + i * 0.08), dur: env.sec(0.5), stagger: env.sec(0.04), easing: p.curva, out };
-        drawParts(ctx, sym.parts, sx + i * sz * (1 + gap), sy, sz, fill, partStates(sym.parts, m));
-      }));
+      env.place(
+        'fila',
+        'Fila dei simboli',
+        { x: sx, y: sy, w: total, h: sz },
+        () =>
+          SYMBOLS.forEach((sym, i) => {
+            const fill: Fill = { mode: p.riempimento, color: ink, iri: { style: p.simboloIri ?? 'raggiera', time: f.time, seed: i * 11, rays: 0.9 } };
+            const m = { anim: 'assembla' as const, frame: f.frame, fps: f.fps, start: markStart + env.sec(0.5 + i * 0.08), dur: env.sec(0.5), stagger: env.sec(0.04), easing: p.curva, out };
+            drawParts(ctx, sym.parts, sx + i * sz * (1 + gap), sy, sz, fill, partStates(sym.parts, m));
+          }),
+        'grafica',
+        { start: markStart + env.sec(0.5), end: markStart + env.sec(1.6) },
+      );
     }
     // Atenei e account.
     const fst = styleOf('fonte26', s);
-    const fa = Easing.out(clamp((lf - env.sec(0.7)) / env.sec(0.6))) * a;
-    ctx.save();
-    ctx.globalAlpha *= fa;
-    ctx.fillStyle = ink;
-    ctx.font = font('titolo', 500, fst.size);
-    ctx.textBaseline = 'alphabetic';
     const by = f.height - f.safe.bottom;
+    const textTime = { start: markStart + env.sec(0.7), end: markStart + env.sec(1.3) };
+    const textState = () => {
+      const fa = Easing.out(clamp((f.frame - markStart - env.sec(0.7)) / env.sec(0.6))) * a;
+      ctx.globalAlpha *= fa;
+      ctx.fillStyle = ink;
+      ctx.font = font('titolo', 500, fst.size);
+      ctx.textBaseline = 'alphabetic';
+      return fa;
+    };
+    ctx.save();
+    ctx.font = font('titolo', 500, fst.size);
     if (p.atenei) {
       // Come nel poster: due atenei con una linea tra loro (p. 35).
       const left = ATENEI[0].toUpperCase();
@@ -148,17 +163,40 @@ export const marchio: Composition = {
       const line = Math.max(40 * s, avail - wl - wr - 60 * s);
       const total = wl + wr + line + 60 * s;
       const lx = (f.width - total) / 2;
-      env.place('atenei', 'Atenei', { x: lx, y: by - fst.size * 0.8, w: total, h: fst.size }, () => {
-        ctx.fillText(left, lx, by);
-        ctx.fillText(right, lx + total - wr, by);
-        ctx.fillRect(lx + wl + 30 * s, by - fst.size * 0.35, line * Easing.inOut(fa), Math.max(1, 2 * s));
-      }, 'testo');
+      env.place(
+        'atenei',
+        'Atenei',
+        { x: lx, y: by - fst.size * 0.8, w: total, h: fst.size },
+        () => {
+          ctx.save();
+          const fa = textState();
+          (ctx as any).letterSpacing = `${0.04 * fst.size}px`;
+          ctx.fillText(left, lx, by);
+          ctx.fillText(right, lx + total - wr, by);
+          ctx.fillRect(lx + wl + 30 * s, by - fst.size * 0.35, line * Easing.inOut(fa), Math.max(1, 2 * s));
+          ctx.restore();
+        },
+        'testo',
+        textTime,
+      );
     }
     if (p.account) {
       (ctx as any).letterSpacing = '0px';
       const w = ctx.measureText('@' + ACCOUNT).width;
       const ay = by - (p.atenei ? 70 * s : 0);
-      env.place('account', 'Account', { x: (f.width - w) / 2, y: ay - fst.size * 0.8, w, h: fst.size }, () => ctx.fillText('@' + ACCOUNT, (f.width - w) / 2, ay), 'testo');
+      env.place(
+        'account',
+        'Account',
+        { x: (f.width - w) / 2, y: ay - fst.size * 0.8, w, h: fst.size },
+        () => {
+          ctx.save();
+          textState();
+          ctx.fillText('@' + ACCOUNT, (f.width - w) / 2, ay);
+          ctx.restore();
+        },
+        'testo',
+        textTime,
+      );
     }
     ctx.restore();
   },
@@ -382,19 +420,29 @@ export const composizione: Composition = {
       ctx.globalAlpha *= p.animForme === 'dissolvenza' ? e : 1;
       drawParts(ctx, form.parts, x, y, cell, fill, undefined, { rotate: rot + (p.animForme === 'ruota' ? (1 - e) * (Math.PI / 2) : 0), globalScale: p.animForme === 'dissolvenza' ? 1 : sc });
       ctx.restore();
-    }));
+    }), 'grafica', { start, end: start + env.sec(1.8) });
     // Firma.
     if (p.firma === 'lockup') {
       const unit = lockupSize(ctx, 100).w / 100;
       const cap = Math.min(firmaH * 0.32, 130 * s, areaW / unit);
-      const fr = clamp((f.frame - start - spread * 0.6) / env.sec(1));
       const y = f.height - f.safe.bottom - cap * (2 + LOCKUP.lineGap);
-      ctx.save();
-      ctx.globalAlpha *= Easing.out(fr) * (1 - out);
       const fc = p.coloreFirma === 'forme' ? colA : p.coloreFirma === 'auto' || !p.coloreFirma ? ink : resolveColor(p.coloreFirma);
       const ls = lockupSize(ctx, cap);
-      env.place('firma', 'Lockup', { x: margin, y, w: ls.w, h: ls.h }, () => drawLockup(ctx, margin, y + (1 - Easing.out(fr)) * 20 * s, cap, fc, fr), 'marchio');
-      ctx.restore();
+      const fs = start + spread * 0.6;
+      env.place(
+        'firma',
+        'Lockup',
+        { x: margin, y, w: ls.w, h: ls.h },
+        () => {
+          const fr = clamp((f.frame - fs) / env.sec(1));
+          ctx.save();
+          ctx.globalAlpha *= Easing.out(fr) * (1 - out);
+          drawLockup(ctx, margin, y + (1 - Easing.out(fr)) * 20 * s, cap, fc, fr);
+          ctx.restore();
+        },
+        'marchio',
+        { start: fs, end: fs + env.sec(1) },
+      );
     } else if (p.firma === 'titolo' && p.titolo) {
       const lt = layoutText(ctx, p.titolo, titleStyle({}, p.titolo, s), areaW);
       placeText(ctx, env, 'titolo', 'Titolo', lt, margin, f.height - f.safe.bottom - lt.height, { color: ink, anim: 'maschera', frame: f.frame, start: start + spread * 0.6, dur: env.sec(0.6), stagger: env.sec(0.08), easing: p.curva, out });
@@ -479,13 +527,17 @@ export const linkedinCopertina: Composition = {
     const box = 64 * s;
     const fy = f.height - f.safe.bottom - box - 70 * s - lf.height;
     placeText(ctx, env, 'frase', 'Frase', lf, f.safe.left, fy, { ...o, start: start + env.sec(0.5), color: ink, frame: f.frame });
-    const e = Easing.out(clamp((f.frame - start - env.sec(0.9)) / env.sec(0.5))) * (1 - out);
-    ctx.save();
-    ctx.globalAlpha *= e;
     const by = f.height - f.safe.bottom - box;
-    env.place('riquadro', 'Monogramma in riquadro', { x: f.safe.left, y: by, w: box, h: box }, () => drawMonogramBox(ctx, f.safe.left, by, box), 'marchio');
-    if (p.pulsante) env.place('pulsante', 'Pulsante «avanti»', { x: f.width - f.safe.right - box, y: by, w: box, h: box }, () => drawNextButton(ctx, f.width - f.safe.right - box, by, s));
-    ctx.restore();
+    const bs = start + env.sec(0.9);
+    const fadeIn = (draw: () => void) => () => {
+      ctx.save();
+      ctx.globalAlpha *= Easing.out(clamp((f.frame - bs) / env.sec(0.5))) * (1 - out);
+      draw();
+      ctx.restore();
+    };
+    const bt = { start: bs, end: bs + env.sec(0.5) };
+    env.place('riquadro', 'Monogramma in riquadro', { x: f.safe.left, y: by, w: box, h: box }, fadeIn(() => drawMonogramBox(ctx, f.safe.left, by, box)), 'marchio', bt);
+    if (p.pulsante) env.place('pulsante', 'Pulsante «avanti»', { x: f.width - f.safe.right - box, y: by, w: box, h: box }, fadeIn(() => drawNextButton(ctx, f.width - f.safe.right - box, by, s)), 'grafica', bt);
   },
 };
 

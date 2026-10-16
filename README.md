@@ -79,6 +79,14 @@ in un unico .zip.
 avanti tra le modifiche. Un trascinamento intero, una serie di spostamenti con le frecce o una
 digitazione continua contano come un solo passo.
 
+**Timeline**: sotto l'anteprima, una riga per elemento con la barra del suo ingresso, la linea di
+permanenza e il segno dell'uscita. Le barre viola (elementi dei modelli) si trascinano per anticipare
+o ritardare l'elemento; doppio clic per rimetterlo com'era; il ritardo si scrive anche nel pannello
+«Elementi». Le barre fucsia (livelli) si spostano, si allungano dal bordo destro (durata
+dell'ingresso) e hanno un segno nero da trascinare per farle uscire prima della fine. Le barre si
+agganciano alla testina e agli inizi e alle fini delle altre (Alt per sganciarle); un clic sulla
+timeline sposta la testina. I ritardi valgono per formato, come gli altri ritocchi.
+
 **Elementi in più**: a ogni modello si possono aggiungere livelli (testo, simbolo, forma, marchio,
 etichetta, immagine, materia iridescente, freccia) disegnati sopra la composizione. Nella composizione
 libera i livelli si trascinano direttamente sull'anteprima.

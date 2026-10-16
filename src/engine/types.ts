@@ -73,6 +73,8 @@ export interface Adjust {
   dy: number;
   s: number;
   hidden?: boolean;
+  /** Ritardo dell'elemento nel tempo, in secondi (negativo: anticipa). */
+  dt?: number;
 }
 
 export type ElementKind = 'testo' | 'grafica' | 'marchio' | 'livello';
@@ -87,6 +89,15 @@ export interface PlacedElement {
   hidden: boolean;
   /** Livello della composizione libera: si sposta cambiando i suoi campi. */
   layer?: boolean;
+  /** Ingresso dell'elemento in fotogrammi (dopo l'eventuale ritardo): inizio, fine, uscita. */
+  time?: ElementTime;
+}
+
+export interface ElementTime {
+  start: number;
+  end: number;
+  /** Fotogramma in cui l'elemento esce (assente: resta fino alla fine). */
+  exit?: number;
 }
 
 export interface Env {
@@ -94,7 +105,7 @@ export interface Env {
    * Disegna un elemento con nome: applica il ritocco dell'utente (spostamento, scala,
    * visibilità) e lo registra per la selezione sull'anteprima.
    */
-  place: (id: string, label: string, box: Box, draw: () => void, kind?: ElementKind) => void;
+  place: (id: string, label: string, box: Box, draw: (dt: number) => void, kind?: ElementKind, time?: ElementTime) => void;
   /** Modalità manuale: limita le scelte alle regole verificate. */
   strict: boolean;
   /** Segnala un problema di aderenza al manuale. */

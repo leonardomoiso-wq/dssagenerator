@@ -210,3 +210,28 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .model-menu button:hover { background: var(--bg); }
 .model-menu .danger { color: #b0002a; }
 .model-menu .help { padding: 6px 10px; }
+
+.timeline { --tl-label: 150px; width: min(100%, 900px); margin-top: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px 8px; font-size: 12px; user-select: none; }
+.tl-rows { position: relative; max-height: 190px; overflow-y: auto; }
+.tl-row { display: flex; align-items: center; height: 22px; }
+.tl-row.on { background: var(--lilla); border-radius: 6px; }
+.tl-row.off { opacity: 0.45; }
+.tl-label { width: var(--tl-label); flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; cursor: pointer; }
+.tl-label em { font-style: normal; color: var(--viola); margin-left: 4px; font-size: 11px; }
+.tl-label small { color: var(--muted); font-size: 10.5px; }
+.tl-track { position: relative; flex: 1; height: 100%; cursor: text; }
+.tl-ruler .tl-track { border-bottom: 1px solid var(--line); height: 18px; cursor: pointer; }
+.tick { position: absolute; top: 2px; font-size: 10px; color: var(--muted); transform: translateX(-50%); }
+.tick:first-child { transform: none; }
+.tl-life { position: absolute; top: 9px; height: 4px; background: #d9d5f3; border-radius: 2px; pointer-events: none; }
+.tl-life.static { background: repeating-linear-gradient(90deg, #d9d5f3 0 6px, transparent 6px 10px); }
+.tl-bar { position: absolute; top: 4px; height: 14px; background: var(--viola); border-radius: 4px; cursor: grab; }
+.tl-bar.layer { background: var(--fucsia); }
+.tl-bar:active { cursor: grabbing; }
+.tl-handle { position: absolute; right: -2px; top: 0; width: 7px; height: 100%; cursor: ew-resize; background: rgba(255,255,255,0.55); border-radius: 0 4px 4px 0; }
+.tl-exit { position: absolute; top: 3px; width: 4px; height: 16px; margin-left: -2px; background: var(--nero); border-radius: 2px; cursor: ew-resize; }
+.tl-exit.fixed { background: #9a98a8; cursor: default; pointer-events: none; }
+.tl-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--fucsia); pointer-events: none; }
+.tl-snap { position: absolute; top: 0; bottom: 0; width: 1px; background: #00b4ff; pointer-events: none; }
+.stage .canvas-wrap { height: min(calc(100vh - 380px), 1000px); }
+.stage.has-series .canvas-wrap { height: min(calc(100vh - 520px), 1000px); }

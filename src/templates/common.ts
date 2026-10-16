@@ -1,7 +1,7 @@
 // Campi e disegni condivisi dai modelli: fondo, testata (marchio ed etichetta), ritmo.
 import { drawArrow, drawIridescentBg, drawLabel, drawLogotype, labelWidth, logotypeWidth, SHAPE_ANIM_OPTIONS, SHAPE_LOOP_OPTIONS } from '../brand/draw';
 import { EASING_OPTIONS, Easing, clamp } from '../engine/anim';
-import { drawText, TEXT_ANIM_OPTIONS, type DrawTextOpts, type TextLayout, type TextStyle } from '../engine/text';
+import { drawText, textAnimEnd, TEXT_ANIM_OPTIONS, type DrawTextOpts, type TextLayout, type TextStyle } from '../engine/text';
 import type { Env, Field, FrameInfo, Props } from '../engine/types';
 import {
   contrast,
@@ -250,9 +250,7 @@ export function drawTestata(ctx: CanvasRenderingContext2D, f: FrameInfo, props: 
   const bottom = y + Math.max(cap, (55 * s) / 2 + cap / 2);
   if (props.marchio === false && !props.etichetta) return y + cap;
   const start = t0(f, props, env);
-  const p = Easing.out(clamp((f.frame - start) / env.sec(0.5)));
   const out = exitProgress(f, props);
-  const a = p * (1 - out);
   // Riquadro per la selezione: logotipo, distanza 0,86 x, etichetta.
   const logoW = props.marchio !== false ? logotypeWidth(ctx, cap) : 0;
   const lx = props.marchio !== false ? x + logoW + cap * LABEL_GAP_X : x;
@@ -264,6 +262,9 @@ export function drawTestata(ctx: CanvasRenderingContext2D, f: FrameInfo, props: 
     'Marchio ed etichetta',
     box,
     () => {
+      // Avanzamento letto qui dentro: segue l'eventuale ritardo dato dalla timeline.
+      const p = Easing.out(clamp((f.frame - start) / env.sec(0.5)));
+      const a = p * (1 - out);
       if (a <= 0) return;
       ctx.save();
       ctx.globalAlpha *= a;
@@ -275,6 +276,7 @@ export function drawTestata(ctx: CanvasRenderingContext2D, f: FrameInfo, props: 
       ctx.restore();
     },
     'marchio',
+    { start, end: start + env.sec(0.65) },
   );
   return bottom;
 }
@@ -293,13 +295,29 @@ export function placeText(
   const w = lay.width;
   const x0 = opts.align === 'center' ? x - w / 2 : opts.align === 'right' ? x - w : x;
   const pad = lay.style.size * 0.12;
-  env.place(id, label, { x: x0, y: y - pad, w, h: lay.height + lay.style.size * 0.28 + pad }, () => drawText(ctx, lay, x, y, opts), 'testo');
+  const start = opts.start ?? 0;
+  const time = opts.anim && opts.anim !== 'nessuna' && opts.frame !== undefined ? { start, end: Math.max(start + 1, textAnimEnd(lay, opts)) } : undefined;
+  env.place(
+    id,
+    label,
+    { x: x0, y: y - pad, w, h: lay.height + lay.style.size * 0.28 + pad },
+    (dt) => drawText(ctx, lay, x, y, opts.frame === undefined ? opts : { ...opts, frame: opts.frame - dt }),
+    'testo',
+    time,
+  );
 }
 
 /** Freccia in basso a sinistra. */
 export function drawFreccia(ctx: CanvasRenderingContext2D, f: FrameInfo, props: Props, env: Env, ink: string, appearAt: number) {
   if (!props.freccia) return;
-  const p = clamp((f.frame - appearAt) / env.sec(0.5)) * (1 - exitProgress(f, props));
+  const out = exitProgress(f, props);
   const y = f.height - f.safe.bottom - 39 * f.s;
-  env.place('freccia', 'Freccia', { x: f.safe.left, y, w: 56 * f.s, h: 39 * f.s }, () => drawArrow(ctx, f.safe.left, y, f.s, ink, p));
+  env.place(
+    'freccia',
+    'Freccia',
+    { x: f.safe.left, y, w: 56 * f.s, h: 39 * f.s },
+    () => drawArrow(ctx, f.safe.left, y, f.s, ink, clamp((f.frame - appearAt) / env.sec(0.5)) * (1 - out)),
+    'grafica',
+    { start: appearAt, end: appearAt + env.sec(0.5) },
+  );
 }

@@ -58,7 +58,7 @@ export function getAdjust(project: Project, id: string): Adjust {
 }
 
 export function setAdjust(project: Project, id: string, a: Adjust | null): Project {
-  const clean = a && Math.abs(a.dx) < 0.01 && Math.abs(a.dy) < 0.01 && Math.abs(a.s - 1) < 0.001 && !a.hidden ? null : a;
+  const clean = a && Math.abs(a.dx) < 0.01 && Math.abs(a.dy) < 0.01 && Math.abs(a.s - 1) < 0.001 && !a.hidden && !a.dt ? null : a;
   return { ...project, props: withAdjustment(project.props, project.format, id, clean) };
 }
 

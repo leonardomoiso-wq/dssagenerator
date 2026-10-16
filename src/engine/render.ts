@@ -5,7 +5,7 @@ import { autoDuration, getComposition } from '../templates';
 import { clamp, Easing } from './anim';
 import { beatsAt } from './audio';
 import { fontState } from './fonts';
-import type { Adjust, Box, Composition, ElementKind, Env, FrameInfo, PlacedElement, Project, Props } from './types';
+import type { Adjust, Box, Composition, ElementKind, ElementTime, Env, FrameInfo, PlacedElement, Project, Props } from './types';
 
 // --- Immagini ---
 
@@ -133,22 +133,28 @@ export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, fra
   const warnings = new Set<string>();
   const speed = project.speed || 1;
   const adj = adjustmentsOf(project.props, project.format);
+  const exitAt = project.props.uscita === 'dissolvenza' ? total - Math.round(0.6 * fps) : project.props.uscita === 'forme' ? total - Math.round((0.8 * fps) / speed) : undefined;
   const elements: PlacedElement[] = [];
   const env: Env = {
-    place: (id: string, label: string, box: Box, draw: () => void, kind: ElementKind = 'grafica') => {
+    place: (id: string, label: string, box: Box, draw: (dt: number) => void, kind: ElementKind = 'grafica', time?: ElementTime) => {
+      // Finale «gli elementi escono» o «copertura»: l'uscita è uguale per tutti.
+      if (time && time.exit === undefined && !kind.startsWith('livello') && exitAt !== undefined) time = { ...time, exit: exitAt };
       if (kind === 'livello') {
-        elements.push({ id, label, kind, box, hidden: false, layer: true });
-        draw();
+        elements.push({ id, label, kind, box, hidden: false, layer: true, time });
+        draw(0);
         return;
       }
       const a = adj[id];
       if (!a) {
-        elements.push({ id, label, kind, box, hidden: false });
-        draw();
+        elements.push({ id, label, kind, box, hidden: false, time });
+        draw(0);
         return;
       }
+      // Ritardo nel tempo: l'elemento si disegna con l'orologio spostato indietro.
+      const dt = a.dt ? (a.dt * fps) / speed : 0;
+      const shifted = time && dt ? { start: time.start + dt, end: time.end + dt, exit: time.exit !== undefined ? time.exit + dt : undefined } : time;
       const tb = transformBox(box, a);
-      elements.push({ id, label, kind, box: a.hidden ? box : tb, hidden: !!a.hidden });
+      elements.push({ id, label, kind, box: a.hidden ? box : tb, hidden: !!a.hidden, time: shifted });
       if (a.hidden) return;
       if (project.strict) {
         const sf = format.safe;
@@ -163,8 +169,13 @@ export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, fra
       ctx.translate(a.dx + cx, a.dy + cy);
       ctx.scale(a.s, a.s);
       ctx.translate(-cx, -cy);
-      draw();
-      ctx.restore();
+      shift += dt;
+      try {
+        draw(dt);
+      } finally {
+        shift -= dt;
+        ctx.restore();
+      }
     },
     strict: project.strict,
     warn: (m) => warnings.add(m),
@@ -173,8 +184,13 @@ export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, fra
     beats: project.audio?.sync && project.audio.bpm ? (t) => beatsAt(project.audio, t, opts.timeOffset ?? 0) : undefined,
     fontsReady: { basier: fontState.basier, wotfard: fontState.wotfard },
   };
+  // Il fotogramma si legge al momento: dentro un elemento ritardato vale il suo orologio.
+  const baseFrame = Math.max(0, Math.min(total - 1, frame));
+  let shift = 0;
   const f: FrameInfo = {
-    frame: Math.max(0, Math.min(total - 1, frame)),
+    get frame() {
+      return baseFrame - shift;
+    },
     fps,
     durationInFrames: total,
     width: w,
