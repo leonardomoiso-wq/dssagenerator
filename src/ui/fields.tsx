@@ -7,6 +7,9 @@ import { LAYER_TYPES, newLayer } from '../templates/libera';
 
 interface Ctx {
   strict: boolean;
+  /** Elemento selezionato sull'anteprima (per i livelli: il loro id). */
+  selected?: string | null;
+  onSelect?: (id: string | null) => void;
 }
 
 export function FieldList({ fields, values, onChange, ctx }: { fields: Field[]; values: Props; onChange: (key: string, v: any) => void; ctx: Ctx }) {
@@ -255,7 +258,13 @@ function SvgPicker({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 function LayersEditor({ layers, onChange, ctx }: { layers: Layer[]; onChange: (v: Layer[]) => void; ctx: Ctx }) {
-  const [sel, setSel] = useState<string | null>(layers[layers.length - 1]?.id ?? null);
+  const [own, setOwn] = useState<string | null>(layers[layers.length - 1]?.id ?? null);
+  // La selezione segue l'anteprima: cliccare un livello sul disegno lo apre qui.
+  const sel = ctx.selected && layers.some((l) => l.id === ctx.selected) ? ctx.selected : own;
+  const setSel = (id: string | null) => {
+    setOwn(id);
+    ctx.onSelect?.(id);
+  };
   const current = layers.find((l) => l.id === sel) ?? null;
   const update = (id: string, patch: Partial<Layer>) => onChange(layers.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   const move = (id: string, d: number) => {

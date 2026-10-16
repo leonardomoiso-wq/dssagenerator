@@ -36,6 +36,18 @@ I 7 ambiti in sequenza, Composizione di forme dal vocabolario (p. 35).
 **Composizione libera**: livelli di simboli, forme, testi, marchio, etichetta, immagini, materia
 iridescente e freccia, ognuno con il suo ingresso, la sua durata e la sua uscita.
 
+**Ritocchi sui modelli**: ogni elemento di un modello (marchio ed etichetta, titolo, testi, simbolo,
+fotografia, cifra, freccia…) si seleziona sull'anteprima e si trascina; la maniglia in basso a destra
+lo scala, il pallino nel pannello «Elementi» lo nasconde. Le frecce spostano di 1 px (Maiusc 10 px),
+Maiusc durante il trascinamento blocca la direzione, i bordi si agganciano ai margini sicuri e al centro
+(Alt per sganciarli). I ritocchi si salvano nel progetto e valgono per il formato corrente: lo stesso
+post può avere aggiustamenti diversi in versione Story o LinkedIn. Con le regole del manuale attive il
+compositore avvisa se un testo esce dai margini sicuri o viene scalato fuori dalla scala tipografica.
+
+**Elementi in più**: a ogni modello si possono aggiungere livelli (testo, simbolo, forma, marchio,
+etichetta, immagine, materia iridescente, freccia) disegnati sopra la composizione. Nella composizione
+libera i livelli si trascinano direttamente sull'anteprima.
+
 **Formati**: Instagram post e carosello 1080 × 1350, Story e Reel 1080 × 1920, copertina del Reel,
 quadrato; LinkedIn 4:5, quadrato, 16:9. Le guide mostrano margini (88 px) e zone dell'interfaccia
 (250 px in alto e 340 in basso nelle Story; fascia 240-1680 della copertina Reel; 34 px tagliati

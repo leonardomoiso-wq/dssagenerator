@@ -58,7 +58,41 @@ export interface FrameInfo {
   time: number;
 }
 
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Ritocco di un elemento di un modello: spostamento, scala, visibilità. */
+export interface Adjust {
+  dx: number;
+  dy: number;
+  s: number;
+  hidden?: boolean;
+}
+
+export type ElementKind = 'testo' | 'grafica' | 'marchio' | 'livello';
+
+/** Elemento disegnato nel fotogramma, selezionabile sull'anteprima. */
+export interface PlacedElement {
+  id: string;
+  label: string;
+  kind: ElementKind;
+  /** Riquadro dopo il ritocco, in pixel del formato. */
+  box: Box;
+  hidden: boolean;
+  /** Livello della composizione libera: si sposta cambiando i suoi campi. */
+  layer?: boolean;
+}
+
 export interface Env {
+  /**
+   * Disegna un elemento con nome: applica il ritocco dell'utente (spostamento, scala,
+   * visibilità) e lo registra per la selezione sull'anteprima.
+   */
+  place: (id: string, label: string, box: Box, draw: () => void, kind?: ElementKind) => void;
   /** Modalità manuale: limita le scelte alle regole verificate. */
   strict: boolean;
   /** Segnala un problema di aderenza al manuale. */

@@ -1,7 +1,7 @@
 // Campi e disegni condivisi dai modelli: fondo, testata (marchio ed etichetta), ritmo.
-import { drawArrow, drawIridescentBg, drawLabel, drawLogotype, SHAPE_ANIM_OPTIONS, SHAPE_LOOP_OPTIONS } from '../brand/draw';
+import { drawArrow, drawIridescentBg, drawLabel, drawLogotype, labelWidth, logotypeWidth, SHAPE_ANIM_OPTIONS, SHAPE_LOOP_OPTIONS } from '../brand/draw';
 import { EASING_OPTIONS, Easing, clamp } from '../engine/anim';
-import { TEXT_ANIM_OPTIONS, type TextStyle } from '../engine/text';
+import { drawText, TEXT_ANIM_OPTIONS, type DrawTextOpts, type TextLayout, type TextStyle } from '../engine/text';
 import type { Env, Field, FrameInfo, Props } from '../engine/types';
 import {
   contrast,
@@ -247,29 +247,59 @@ export function drawTestata(ctx: CanvasRenderingContext2D, f: FrameInfo, props: 
   const x = f.safe.left;
   const y = f.safe.top;
   const cap = LOGO_CAP_PX * s;
+  const bottom = y + Math.max(cap, (55 * s) / 2 + cap / 2);
+  if (props.marchio === false && !props.etichetta) return y + cap;
   const start = t0(f, props, env);
   const p = Easing.out(clamp((f.frame - start) / env.sec(0.5)));
   const out = exitProgress(f, props);
   const a = p * (1 - out);
-  if (a <= 0) return y + cap;
-  ctx.save();
-  ctx.globalAlpha *= a;
-  let lx = x;
-  if (props.marchio !== false) {
-    const w = drawLogotype(ctx, x, y - (1 - p) * 10 * s, cap, ink);
-    lx = x + w + cap * LABEL_GAP_X;
-  }
-  if (props.etichetta) {
-    const lp = Easing.out(clamp((f.frame - start - env.sec(0.15)) / env.sec(0.5)));
-    drawLabel(ctx, props.etichetta, lx + (1 - lp) * 16 * s, y + cap / 2, s, ink, lp);
-  }
-  ctx.restore();
-  return y + Math.max(cap, 55 * s / 2 + cap / 2);
+  // Riquadro per la selezione: logotipo, distanza 0,86 x, etichetta.
+  const logoW = props.marchio !== false ? logotypeWidth(ctx, cap) : 0;
+  const lx = props.marchio !== false ? x + logoW + cap * LABEL_GAP_X : x;
+  const labelW = props.etichetta ? labelWidth(ctx, props.etichetta, s) : 0;
+  const lh = 55 * s;
+  const box = { x, y: Math.min(y, y + cap / 2 - lh / 2), w: lx - x + labelW, h: Math.max(cap, lh) };
+  env.place(
+    'testata',
+    'Marchio ed etichetta',
+    box,
+    () => {
+      if (a <= 0) return;
+      ctx.save();
+      ctx.globalAlpha *= a;
+      if (props.marchio !== false) drawLogotype(ctx, x, y - (1 - p) * 10 * s, cap, ink);
+      if (props.etichetta) {
+        const lp = Easing.out(clamp((f.frame - start - env.sec(0.15)) / env.sec(0.5)));
+        drawLabel(ctx, props.etichetta, lx + (1 - lp) * 16 * s, y + cap / 2, s, ink, lp);
+      }
+      ctx.restore();
+    },
+    'marchio',
+  );
+  return bottom;
+}
+
+/** Testo con nome: si può spostare e scalare dall'anteprima. */
+export function placeText(
+  ctx: CanvasRenderingContext2D,
+  env: Env,
+  id: string,
+  label: string,
+  lay: TextLayout,
+  x: number,
+  y: number,
+  opts: DrawTextOpts,
+) {
+  const w = lay.width;
+  const x0 = opts.align === 'center' ? x - w / 2 : opts.align === 'right' ? x - w : x;
+  const pad = lay.style.size * 0.12;
+  env.place(id, label, { x: x0, y: y - pad, w, h: lay.height + lay.style.size * 0.28 + pad }, () => drawText(ctx, lay, x, y, opts), 'testo');
 }
 
 /** Freccia in basso a sinistra. */
 export function drawFreccia(ctx: CanvasRenderingContext2D, f: FrameInfo, props: Props, env: Env, ink: string, appearAt: number) {
   if (!props.freccia) return;
   const p = clamp((f.frame - appearAt) / env.sec(0.5)) * (1 - exitProgress(f, props));
-  drawArrow(ctx, f.safe.left, f.height - f.safe.bottom - 39 * f.s, f.s, ink, p);
+  const y = f.height - f.safe.bottom - 39 * f.s;
+  env.place('freccia', 'Freccia', { x: f.safe.left, y, w: 56 * f.s, h: 39 * f.s }, () => drawArrow(ctx, f.safe.left, y, f.s, ink, p));
 }

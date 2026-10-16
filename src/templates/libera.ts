@@ -1,12 +1,12 @@
 // Composizione libera a livelli: si combinano simboli, forme, testi, marchio, etichetta,
 // immagini, materia iridescente e freccia, ognuno con il suo ingresso e il suo tempo.
-import { drawArrow, drawDuotone, drawImageCover, drawLabel, drawLockup, drawLogotypeReveal, drawMonogram, drawParts, partsClipPath, partStates, breath, SHAPE_ANIM_OPTIONS, SHAPE_LOOP_OPTIONS, type Fill } from '../brand/draw';
+import { drawArrow, drawDuotone, drawImageCover, drawLabel, drawLockup, drawLogotypeReveal, drawMonogram, labelWidth, lockupSize, logotypeWidth, monogramSize, drawParts, partsClipPath, partStates, breath, SHAPE_ANIM_OPTIONS, SHAPE_LOOP_OPTIONS, type Fill } from '../brand/draw';
 import { FORMS, getSymbol } from '../brand/symbols';
 import { drawIridescent } from '../brand/iridescent';
 import { isPaletteColor, PALETTE, resolveColor, TYPE } from '../brand/tokens';
 import { clamp, EASING_OPTIONS, getEasing } from '../engine/anim';
 import { drawText, layoutText, TEXT_ANIM_OPTIONS, type TextAnim } from '../engine/text';
-import type { Composition, Env, Field, FrameInfo, Layer, Props } from '../engine/types';
+import type { Box, Composition, Env, Field, FrameInfo, Layer, Props } from '../engine/types';
 import { defaultsOf } from '../engine/types';
 import { drawFondo, exitProgress, fondoFields, IRI_STYLES, ritmoFields } from './common';
 import { FILL_OPTIONS } from './symbol-helpers';
@@ -195,6 +195,42 @@ export function newLayer(type: string, overrides: Props = {}): Layer {
   };
 }
 
+/** Riquadro di un livello, per la selezione e il trascinamento sull'anteprima. */
+function layerBox(ctx: CanvasRenderingContext2D, f: FrameInfo, layer: Layer, env: Env): Box {
+  const lp = layer.props;
+  const s = f.s;
+  const X = (lp.x / 100) * f.width;
+  const Y = (lp.y / 100) * f.height;
+  switch (layer.type) {
+    case 'simbolo':
+    case 'forma': {
+      const size = (f.width * lp.dimensione) / 100;
+      return { x: X - size / 2, y: Y - size / 2, w: size, h: size };
+    }
+    case 'testo': {
+      const base = (TYPE as any)[lp.stile] ?? TYPE.titolo96;
+      const size = (env.strict || !lp.corpo ? base.size : lp.corpo) * s;
+      const w = (f.width * lp.larghezza) / 100;
+      const lay = layoutText(ctx, lp.testo, { family: lp.carattere ?? 'titolo', size, weight: base.weight, lineHeight: base.lineHeight, tracking: base.tracking }, w);
+      const x0 = lp.allinea === 'center' ? X + (w - lay.width) / 2 : lp.allinea === 'right' ? X + w - lay.width : X;
+      return { x: x0, y: Y - size * 0.12, w: lay.width, h: lay.height + size * 0.4 };
+    }
+    case 'marchio': {
+      const cap = lp.altezza * s;
+      const sz = lp.configurazione === 'monogramma' ? monogramSize(ctx, cap) : lp.configurazione === 'lockup' ? lockupSize(ctx, cap) : { w: logotypeWidth(ctx, cap), h: cap };
+      return { x: X, y: Y, ...sz };
+    }
+    case 'etichetta': {
+      const h = 55 * s;
+      return { x: X, y: Y - h / 2, w: labelWidth(ctx, lp.testo, s), h };
+    }
+    case 'freccia':
+      return { x: X, y: Y, w: 56 * s, h: 39 * s };
+    default:
+      return { x: X, y: Y, w: (f.width * (lp.w ?? 100)) / 100, h: (f.height * (lp.h ?? 100)) / 100 };
+  }
+}
+
 function layerAlpha(f: FrameInfo, lp: Props, env: Env) {
   const start = env.sec(lp.inizio ?? 0);
   const dur = env.sec(lp.durata ?? 0.7);
@@ -305,6 +341,21 @@ function drawLayer(ctx: CanvasRenderingContext2D, f: FrameInfo, layer: Layer, en
   }
 }
 
+/** Disegna una pila di livelli (composizione libera o elementi aggiunti a un modello). */
+export function drawLayers(ctx: CanvasRenderingContext2D, f: FrameInfo, layers: Layer[], env: Env, out: number) {
+  const symbols = layers.filter((l) => l.type === 'simbolo' && !l.hidden);
+  if (symbols.length > 1) env.warn('Più di un simbolo: in una copertina social va un solo simbolo (p. 40).');
+  for (const l of layers) {
+    if (l.hidden) continue;
+    ctx.save();
+    try {
+      env.place(l.id, l.name, layerBox(ctx, f, l, env), () => drawLayer(ctx, f, l, env, out), 'livello');
+    } finally {
+      ctx.restore();
+    }
+  }
+}
+
 export const libera: Composition = {
   id: 'libera',
   name: 'Composizione libera',
@@ -332,17 +383,6 @@ export const libera: Composition = {
   render(ctx, f, p, env) {
     drawFondo(ctx, f, p, env);
     const out = exitProgress(f, p);
-    const layers: Layer[] = p.livelli ?? [];
-    const symbols = layers.filter((l) => l.type === 'simbolo' && !l.hidden);
-    if (symbols.length > 1) env.warn('Più di un simbolo: in una copertina social va un solo simbolo (p. 40).');
-    for (const l of layers) {
-      if (l.hidden) continue;
-      ctx.save();
-      try {
-        drawLayer(ctx, f, l, env, out);
-      } finally {
-        ctx.restore();
-      }
-    }
+    drawLayers(ctx, f, p.livelli ?? [], env, out);
   },
 };

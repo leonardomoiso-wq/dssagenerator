@@ -4,7 +4,7 @@ import { getFormat, PALETTE, resolveColor } from '../brand/tokens';
 import { autoDuration, getComposition } from '../templates';
 import { clamp, Easing } from './anim';
 import { fontState } from './fonts';
-import type { Composition, Env, FrameInfo, Project, Props } from './types';
+import type { Adjust, Box, Composition, ElementKind, Env, FrameInfo, PlacedElement, Project, Props } from './types';
 
 // --- Immagini ---
 
@@ -96,6 +96,29 @@ function applyTransitions(ctx: CanvasRenderingContext2D, f: FrameInfo, props: Pr
 export interface RenderResult {
   warnings: string[];
   error?: string;
+  elements: PlacedElement[];
+}
+
+/** Ritocchi del progetto per un formato. */
+export function adjustmentsOf(props: Props, format: string): Record<string, Adjust> {
+  return props.ritocchi?.[format] ?? {};
+}
+
+export function withAdjustment(props: Props, format: string, id: string, a: Adjust | null): Props {
+  const all = { ...(props.ritocchi ?? {}) };
+  const cur = { ...(all[format] ?? {}) };
+  if (a === null) delete cur[id];
+  else cur[id] = a;
+  all[format] = cur;
+  return { ...props, ritocchi: all };
+}
+
+function transformBox(b: Box, a: Adjust): Box {
+  const cx = b.x + b.w / 2,
+    cy = b.y + b.h / 2;
+  const w = b.w * a.s,
+    h = b.h * a.s;
+  return { x: cx - w / 2 + a.dx, y: cy - h / 2 + a.dy, w, h };
 }
 
 export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, frame: number): RenderResult {
@@ -107,7 +130,40 @@ export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, fra
   const h = format.height;
   const warnings = new Set<string>();
   const speed = project.speed || 1;
+  const adj = adjustmentsOf(project.props, project.format);
+  const elements: PlacedElement[] = [];
   const env: Env = {
+    place: (id: string, label: string, box: Box, draw: () => void, kind: ElementKind = 'grafica') => {
+      if (kind === 'livello') {
+        elements.push({ id, label, kind, box, hidden: false, layer: true });
+        draw();
+        return;
+      }
+      const a = adj[id];
+      if (!a) {
+        elements.push({ id, label, kind, box, hidden: false });
+        draw();
+        return;
+      }
+      const tb = transformBox(box, a);
+      elements.push({ id, label, kind, box: a.hidden ? box : tb, hidden: !!a.hidden });
+      if (a.hidden) return;
+      if (project.strict) {
+        const sf = format.safe;
+        const out = tb.x < sf.left - 1 || tb.y < sf.top - 1 || tb.x + tb.w > w - sf.right + 1 || tb.y + tb.h > h - sf.bottom + 1;
+        if ((kind === 'testo' || kind === 'marchio') && out) warnings.add(`«${label}» esce dai margini sicuri del formato (p. 54).`);
+        if (kind === 'testo' && Math.abs(a.s - 1) > 0.005) warnings.add(`«${label}» scalato: il corpo esce dalla scala tipografica (p. 28).`);
+        if (id === 'testata' && (Math.abs(a.dx) > 1 || Math.abs(a.dy) > 1)) warnings.add('Marchio ed etichetta vanno in alto a sinistra (p. 57).');
+      }
+      const cx = box.x + box.w / 2,
+        cy = box.y + box.h / 2;
+      ctx.save();
+      ctx.translate(a.dx + cx, a.dy + cy);
+      ctx.scale(a.s, a.s);
+      ctx.translate(-cx, -cy);
+      draw();
+      ctx.restore();
+    },
     strict: project.strict,
     warn: (m) => warnings.add(m),
     image: (src) => (src ? images.get(src) ?? (loadImage(src), null) : null),
@@ -142,5 +198,5 @@ export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, fra
   }
   ctx.restore();
   if (!fontState.basier) warnings.add('Basier Circle non è caricato: l’anteprima usa Karla. Carica i caratteri prima dell’esportazione definitiva.');
-  return { warnings: [...warnings], error };
+  return { warnings: [...warnings], error, elements };
 }

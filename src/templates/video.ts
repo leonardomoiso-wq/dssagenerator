@@ -5,10 +5,10 @@ import { FORMS, SYMBOLS, type FormId } from '../brand/symbols';
 import { ACCOUNT, ATENEI, DUOTONE, LOCKUP, PALETTE, resolveColor, TINTS, type PaletteName } from '../brand/tokens';
 import { clamp, Easing, getEasing, rng } from '../engine/anim';
 import { font } from '../engine/fonts';
-import { drawText, layoutText, textAnimEnd, type TextAnim } from '../engine/text';
+import { layoutText, textAnimEnd, type TextAnim } from '../engine/text';
 import type { Composition, FrameInfo, Props } from '../engine/types';
-import { drawFondo, exitProgress, fondoFields, inkFor, IRI_STYLES, ritmoFields, styleOf, t0, testataFields, drawTestata, titleStyle } from './common';
-import { drawSymbol, FILL_OPTIONS, motionOf } from './symbol-helpers';
+import { drawFondo, exitProgress, placeText, fondoFields, inkFor, IRI_STYLES, ritmoFields, styleOf, t0, testataFields, drawTestata, titleStyle } from './common';
+import { FILL_OPTIONS, motionOf, placeSymbol } from './symbol-helpers';
 
 // ---------------------------------------------------------------------------
 // Apertura e chiusura con il marchio
@@ -81,7 +81,11 @@ export const marchio: Composition = {
           iri: { style: p.simboloIri ?? 'raggiera', time: f.time, seed: i * 11, rays: 0.9 },
         };
         const pop = Easing.out(clamp(local / Math.max(1, per * 0.5)));
-        drawParts(ctx, sym.parts, (f.width - size) / 2, (f.height - size) / 2, size, fill, undefined, { globalScale: 0.85 + 0.15 * pop });
+        const sx = (f.width - size) / 2,
+          sy = (f.height - size) / 2;
+        env.place('sequenza', 'Sequenza dei simboli', { x: sx, y: sy, w: size, h: size }, () =>
+          drawParts(ctx, sym.parts, sx, sy, size, fill, undefined, { globalScale: 0.85 + 0.15 * pop }),
+        );
       }
       markStart = start + SYMBOLS.length * per;
     }
@@ -98,9 +102,17 @@ export const marchio: Composition = {
     const x = (f.width - mw) / 2;
     const yTop = (f.height - mh) / 2 - (p.simboli === 'fila' ? cap * 0.6 : 0);
     const reveal = (i: number) => ease(clamp((lf - i * env.sec(0.12)) / env.sec(0.55)));
-    if (conf === 'logotipo') drawLogotypeReveal(ctx, x, yTop, cap, ink, reveal(0));
-    else if (conf === 'monogramma') drawMonogram(ctx, x, yTop, cap, ink, [reveal(0), reveal(1)]);
-    else drawLockup(ctx, x, yTop, cap, ink, [reveal(0), reveal(1), clamp((lf - env.sec(0.35)) / env.sec(0.7))]);
+    env.place(
+      'marchio',
+      'Marchio',
+      { x, y: yTop, w: mw, h: mh },
+      () => {
+        if (conf === 'logotipo') drawLogotypeReveal(ctx, x, yTop, cap, ink, reveal(0));
+        else if (conf === 'monogramma') drawMonogram(ctx, x, yTop, cap, ink, [reveal(0), reveal(1)]);
+        else drawLockup(ctx, x, yTop, cap, ink, [reveal(0), reveal(1), clamp((lf - env.sec(0.35)) / env.sec(0.7))]);
+      },
+      'marchio',
+    );
     ctx.restore();
     // Fila dei simboli.
     if (p.simboli === 'fila') {
@@ -110,11 +122,11 @@ export const marchio: Composition = {
       const total = n * sz + (n - 1) * gap * sz;
       const sx = (f.width - total) / 2;
       const sy = yTop + mh + cap * 1.1;
-      SYMBOLS.forEach((sym, i) => {
+      env.place('fila', 'Fila dei simboli', { x: sx, y: sy, w: total, h: sz }, () => SYMBOLS.forEach((sym, i) => {
         const fill: Fill = { mode: p.riempimento, color: ink, iri: { style: p.simboloIri ?? 'raggiera', time: f.time, seed: i * 11, rays: 0.9 } };
         const m = { anim: 'assembla' as const, frame: f.frame, fps: f.fps, start: markStart + env.sec(0.5 + i * 0.08), dur: env.sec(0.5), stagger: env.sec(0.04), easing: p.curva, out };
         drawParts(ctx, sym.parts, sx + i * sz * (1 + gap), sy, sz, fill, partStates(sym.parts, m));
-      });
+      }));
     }
     // Atenei e account.
     const fst = styleOf('fonte26', s);
@@ -136,14 +148,17 @@ export const marchio: Composition = {
       const line = Math.max(40 * s, avail - wl - wr - 60 * s);
       const total = wl + wr + line + 60 * s;
       const lx = (f.width - total) / 2;
-      ctx.fillText(left, lx, by);
-      ctx.fillText(right, lx + total - wr, by);
-      ctx.fillRect(lx + wl + 30 * s, by - fst.size * 0.35, line * Easing.inOut(fa), Math.max(1, 2 * s));
+      env.place('atenei', 'Atenei', { x: lx, y: by - fst.size * 0.8, w: total, h: fst.size }, () => {
+        ctx.fillText(left, lx, by);
+        ctx.fillText(right, lx + total - wr, by);
+        ctx.fillRect(lx + wl + 30 * s, by - fst.size * 0.35, line * Easing.inOut(fa), Math.max(1, 2 * s));
+      }, 'testo');
     }
     if (p.account) {
       (ctx as any).letterSpacing = '0px';
       const w = ctx.measureText('@' + ACCOUNT).width;
-      ctx.fillText('@' + ACCOUNT, (f.width - w) / 2, by - (p.atenei ? 70 * s : 0));
+      const ay = by - (p.atenei ? 70 * s : 0);
+      env.place('account', 'Account', { x: (f.width - w) / 2, y: ay - fst.size * 0.8, w, h: fst.size }, () => ctx.fillText('@' + ACCOUNT, (f.width - w) / 2, ay), 'testo');
     }
     ctx.restore();
   },
@@ -205,16 +220,16 @@ export const setteAmbiti: Composition = {
     };
     const m = motionOf({ ...p, durataParti: 0.6, sfalsamento: 0.07 }, lf, env, env.sec(0.1), out);
     const sy = f.safe.top + 140 * s;
-    drawSymbol(ctx, sym.id, (f.width - size) / 2, sy, size, fill, m);
+    placeSymbol(ctx, env, sym.id, (f.width - size) / 2, sy, size, fill, m);
     // Nome e definizione.
     const o = { anim: (p.animTesto ?? 'maschera') as TextAnim, start: env.sec(0.35), dur: env.sec(0.5), stagger: env.sec(0.07), easing: p.curva, out };
     let ty = sy + size + 90 * s;
     const lt = layoutText(ctx, sym.name, titleStyle({ corpoTitolo: 'titolo80' }, sym.name, s), f.width - f.safe.left - f.safe.right);
-    drawText(ctx, lt, f.safe.left, ty, { ...o, color: ink, frame: local });
+    placeText(ctx, env, 'nome', 'Nome dell’ambito', lt, f.safe.left, ty, { ...o, color: ink, frame: local });
     ty += lt.height + 36 * s;
     if (p.definizione) {
       const l = layoutText(ctx, sym.definition, styleOf('testo38', s), f.width - f.safe.left - f.safe.right);
-      drawText(ctx, l, f.safe.left, ty, { ...o, start: textAnimEnd(lt, o) - env.sec(0.2), color: ink, frame: local });
+      placeText(ctx, env, 'definizione', 'Definizione', l, f.safe.left, ty, { ...o, start: textAnimEnd(lt, o) - env.sec(0.2), color: ink, frame: local });
     }
   },
 };
@@ -332,7 +347,7 @@ export const composizione: Composition = {
     const maxOrder = Math.max(1, ...cells.map((c) => c.order));
     const spread = env.sec(1.2);
     const every = p.rotazioni > 0 ? env.sec(p.rotazioni) : 0;
-    cells.forEach((c, k) => {
+    env.place('forme', 'Composizione di forme', { x: margin, y: oy, w: areaW, h: rows * cell + (rows - 1) * gap }, () => cells.forEach((c, k) => {
       if (c.empty) return;
       const st = start + (c.order / maxOrder) * spread;
       const e = ease(clamp((f.frame - st) / env.sec(0.6)));
@@ -359,7 +374,7 @@ export const composizione: Composition = {
       ctx.globalAlpha *= p.animForme === 'dissolvenza' ? e : 1;
       drawParts(ctx, form.parts, x, y, cell, fill, undefined, { rotate: rot + (p.animForme === 'ruota' ? (1 - e) * (Math.PI / 2) : 0), globalScale: p.animForme === 'dissolvenza' ? 1 : sc });
       ctx.restore();
-    });
+    }));
     // Firma.
     if (p.firma === 'lockup') {
       const unit = lockupSize(ctx, 100).w / 100;
@@ -369,11 +384,12 @@ export const composizione: Composition = {
       ctx.save();
       ctx.globalAlpha *= Easing.out(fr) * (1 - out);
       const fc = p.coloreFirma === 'forme' ? colA : p.coloreFirma === 'auto' || !p.coloreFirma ? ink : resolveColor(p.coloreFirma);
-      drawLockup(ctx, margin, y + (1 - Easing.out(fr)) * 20 * s, cap, fc, fr);
+      const ls = lockupSize(ctx, cap);
+      env.place('firma', 'Lockup', { x: margin, y, w: ls.w, h: ls.h }, () => drawLockup(ctx, margin, y + (1 - Easing.out(fr)) * 20 * s, cap, fc, fr), 'marchio');
       ctx.restore();
     } else if (p.firma === 'titolo' && p.titolo) {
       const lt = layoutText(ctx, p.titolo, titleStyle({}, p.titolo, s), areaW);
-      drawText(ctx, lt, margin, f.height - f.safe.bottom - lt.height, { color: ink, anim: 'maschera', frame: f.frame, start: start + spread * 0.6, dur: env.sec(0.6), stagger: env.sec(0.08), easing: p.curva, out });
+      placeText(ctx, env, 'titolo', 'Titolo', lt, margin, f.height - f.safe.bottom - lt.height, { color: ink, anim: 'maschera', frame: f.frame, start: start + spread * 0.6, dur: env.sec(0.6), stagger: env.sec(0.08), easing: p.curva, out });
     }
   },
 };
@@ -442,24 +458,25 @@ export const linkedinCopertina: Composition = {
     // Sagoma bianca.
     if (p.simbolo && p.simbolo !== 'nessuno') {
       const size = (f.width * p.dimensione) / 100;
-      drawSymbol(ctx, p.simbolo, f.width - f.safe.right - size, f.safe.top + 90 * s, size, { mode: 'piatto', color: ink }, motionOf(p, f, env, start + env.sec(0.4), out));
+      placeSymbol(ctx, env, p.simbolo, f.width - f.safe.right - size, f.safe.top + 90 * s, size, { mode: 'piatto', color: ink }, motionOf(p, f, env, start + env.sec(0.4), out));
     }
     // Nome della serie (SemiBold).
     const o = { anim: (p.animTesto ?? 'maschera') as TextAnim, start: start + env.sec(0.1), dur: env.sec(0.6), stagger: env.sec(0.08), easing: p.curva, out };
     const ls = layoutText(ctx, p.serie, { ...styleOf('etichetta30', s), size: 34 * s }, w);
-    drawText(ctx, ls, f.safe.left, f.safe.top, { ...o, color: ink, frame: f.frame });
+    placeText(ctx, env, 'serie', 'Nome della serie', ls, f.safe.left, f.safe.top, { ...o, color: ink, frame: f.frame });
     // Frase in basso.
     const st = styleOf('testo46', s);
     const lf = layoutText(ctx, p.frase, st, w);
     if (lf.lines.length > 4) env.warn('La frase supera le quattro righe del modello LinkedIn.');
     const box = 64 * s;
     const fy = f.height - f.safe.bottom - box - 70 * s - lf.height;
-    drawText(ctx, lf, f.safe.left, fy, { ...o, start: start + env.sec(0.5), color: ink, frame: f.frame });
+    placeText(ctx, env, 'frase', 'Frase', lf, f.safe.left, fy, { ...o, start: start + env.sec(0.5), color: ink, frame: f.frame });
     const e = Easing.out(clamp((f.frame - start - env.sec(0.9)) / env.sec(0.5))) * (1 - out);
     ctx.save();
     ctx.globalAlpha *= e;
-    drawMonogramBox(ctx, f.safe.left, f.height - f.safe.bottom - box, box);
-    if (p.pulsante) drawNextButton(ctx, f.width - f.safe.right - box, f.height - f.safe.bottom - box, s);
+    const by = f.height - f.safe.bottom - box;
+    env.place('riquadro', 'Monogramma in riquadro', { x: f.safe.left, y: by, w: box, h: box }, () => drawMonogramBox(ctx, f.safe.left, by, box), 'marchio');
+    if (p.pulsante) env.place('pulsante', 'Pulsante «avanti»', { x: f.width - f.safe.right - box, y: by, w: box, h: box }, () => drawNextButton(ctx, f.width - f.safe.right - box, by, s));
     ctx.restore();
   },
 };

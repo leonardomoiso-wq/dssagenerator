@@ -5,7 +5,9 @@ import { addFontFiles, clearStoredFonts, fontState, onFontsChange } from './engi
 import { durationInFrames, renderFrame } from './engine/render';
 import { clearTextCaches } from './engine/text';
 import { clearMarkCaches } from './brand/draw';
-import { defaultsOf, type Project, type Props } from './engine/types';
+import { defaultsOf, type Adjust, type Layer, type PlacedElement, type Project, type Props } from './engine/types';
+import { findLayer, getAdjust, hitTest, moveLayer, resetAll, scaleLayer, setAdjust, snapBox, updateLayer, type SnapLine } from './ui/editing';
+import { ElementsPanel } from './ui/ElementsPanel';
 import { autoDuration, COMPOSITIONS, getComposition } from './templates';
 import { FieldList } from './ui/fields';
 
@@ -44,6 +46,22 @@ export function App() {
   const abortRef = useRef<AbortController | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [elements, setElements] = useState<PlacedElement[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
+  const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
+  const [cursor, setCursor] = useState('default');
+  const drag = useRef<{
+    id: string;
+    mode: 'move' | 'scale';
+    layer: boolean;
+    x0: number;
+    y0: number;
+    box: { x: number; y: number; w: number; h: number };
+    adj: Adjust;
+    orig?: Layer;
+  } | null>(null);
 
   const comp = getComposition(project.composition);
   const format = getFormat(project.format);
@@ -85,6 +103,7 @@ export function App() {
       const ctx = c.getContext('2d', { colorSpace: 'srgb' } as CanvasRenderingContext2DSettings)!;
       const res = renderFrame(ctx, project, fr);
       setWarnings((w) => (w.join('|') === res.warnings.join('|') ? w : res.warnings));
+      setElements((old) => (JSON.stringify(old) === JSON.stringify(res.elements) ? old : res.elements));
       setError(res.error);
     },
     [project],
@@ -128,6 +147,46 @@ export function App() {
     if (!c) return;
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, c.width, c.height);
+    // Selezione e guide magnetiche (sempre visibili, non esportate).
+    const ratio = format.width / (wrapRef.current?.clientWidth || format.width);
+    const drawBox = (el: PlacedElement, strong: boolean) => {
+      const b = el.box;
+      ctx.save();
+      ctx.strokeStyle = '#705EF2';
+      ctx.lineWidth = (strong ? 2.5 : 1.5) * ratio;
+      if (strong) ctx.setLineDash([8 * ratio, 5 * ratio]);
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      if (strong) {
+        const hs = 12 * ratio;
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(b.x + b.w - hs / 2, b.y + b.h - hs / 2, hs, hs);
+        ctx.strokeRect(b.x + b.w - hs / 2, b.y + b.h - hs / 2, hs, hs);
+        ctx.font = `600 ${13 * ratio}px Karla, sans-serif`;
+        const tw = ctx.measureText(el.label).width + 12 * ratio;
+        const ty = b.y > 24 * ratio ? b.y - 22 * ratio : b.y + b.h + 4 * ratio;
+        ctx.fillStyle = '#705EF2';
+        ctx.fillRect(b.x, ty, tw, 18 * ratio);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(el.label, b.x + 6 * ratio, ty + 13.5 * ratio);
+      }
+      ctx.restore();
+    };
+    const visible = elements.filter((e) => !e.hidden);
+    const hv = visible.find((e) => e.id === hover);
+    const sel = visible.find((e) => e.id === selected);
+    if (hv && hv !== sel) drawBox(hv, false);
+    if (sel) drawBox(sel, true);
+    ctx.save();
+    ctx.strokeStyle = '#FF4A75';
+    ctx.lineWidth = 1.5 * ratio;
+    for (const l of snapLines) {
+      ctx.beginPath();
+      if (l.x !== undefined) (ctx.moveTo(l.x, 0), ctx.lineTo(l.x, format.height));
+      if (l.y !== undefined) (ctx.moveTo(0, l.y), ctx.lineTo(format.width, l.y));
+      ctx.stroke();
+    }
+    ctx.restore();
     if (!guides) return;
     const s = format.safe;
     ctx.save();
@@ -145,13 +204,32 @@ export function App() {
     ctx.strokeStyle = 'rgba(0,200,255,0.85)';
     ctx.strokeRect(s.left, s.top, format.width - s.left - s.right, format.height - s.top - s.bottom);
     ctx.restore();
-  }, [guides, format]);
+  }, [guides, format, elements, selected, hover, snapLines]);
 
   // Tastiera: spazio, frecce.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select')) return;
+      if (selected && /^Arrow/.test(e.code)) {
+        e.preventDefault();
+        const st = e.shiftKey ? 10 : 1;
+        const ddx = e.code === 'ArrowLeft' ? -st : e.code === 'ArrowRight' ? st : 0;
+        const ddy = e.code === 'ArrowUp' ? -st : e.code === 'ArrowDown' ? st : 0;
+        setProject((p) => {
+          const layer = findLayer(p, selected);
+          if (layer) return updateLayer(p, selected, (l) => moveLayer(l, ddx, ddy, format.width, format.height, l));
+          const a = getAdjust(p, selected);
+          return setAdjust(p, selected, { ...a, dx: a.dx + ddx, dy: a.dy + ddy });
+        });
+        return;
+      }
+      if (e.code === 'Escape') return setSelected(null);
+      if (selected && (e.code === 'Delete' || e.code === 'Backspace')) {
+        setProject((p) => (findLayer(p, selected) ? updateLayer(p, selected, (l) => ({ ...l, hidden: true })) : setAdjust(p, selected, { ...getAdjust(p, selected), hidden: true })));
+        setSelected(null);
+        return;
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         setFrame((f) => (f >= total - 1 ? 0 : f));
@@ -163,13 +241,85 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [total, project.fps]);
+  }, [total, project.fps, selected, format.width, format.height]);
+
+  // --- Trascinamento sull'anteprima ---
+  const toFormat = (e: React.PointerEvent) => {
+    const r = wrapRef.current!.getBoundingClientRect();
+    return { x: ((e.clientX - r.left) / r.width) * format.width, y: ((e.clientY - r.top) / r.height) * format.height, ratio: format.width / r.width };
+  };
+  const onHandle = (el: PlacedElement | undefined, x: number, y: number, ratio: number) => {
+    if (!el) return false;
+    const b = el.box;
+    return Math.abs(x - (b.x + b.w)) < 12 * ratio && Math.abs(y - (b.y + b.h)) < 12 * ratio;
+  };
+  const onPointerDown = (e: React.PointerEvent) => {
+    const { x, y, ratio } = toFormat(e);
+    const sel = elements.find((el) => el.id === selected && !el.hidden);
+    const scaling = onHandle(sel, x, y, ratio);
+    const hit = scaling ? sel! : hitTest(elements, x, y);
+    if (!hit) {
+      setSelected(null);
+      return;
+    }
+    setPlaying(false);
+    setSelected(hit.id);
+    const layer = hit.layer ? findLayer(project, hit.id) : undefined;
+    if (scaling && hit.layer && layer && !scaleLayer(layer, 1)) return;
+    drag.current = { id: hit.id, mode: scaling ? 'scale' : 'move', layer: !!hit.layer, x0: x, y0: y, box: hit.box, adj: getAdjust(project, hit.id), orig: layer };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const { x, y, ratio } = toFormat(e);
+    const d = drag.current;
+    if (!d) {
+      const sel = elements.find((el) => el.id === selected && !el.hidden);
+      const h = hitTest(elements, x, y);
+      setHover(h?.id ?? null);
+      setCursor(onHandle(sel, x, y, ratio) ? 'nwse-resize' : h ? 'move' : 'default');
+      return;
+    }
+    if (d.mode === 'move') {
+      let ddx = x - d.x0;
+      let ddy = y - d.y0;
+      if (e.shiftKey) Math.abs(ddx) > Math.abs(ddy) ? (ddy = 0) : (ddx = 0);
+      let lines: SnapLine[] = [];
+      if (!e.altKey) {
+        const sn = snapBox({ ...d.box, x: d.box.x + ddx, y: d.box.y + ddy }, format.width, format.height, format.safe, 10 * ratio);
+        ddx += sn.dx;
+        ddy += sn.dy;
+        lines = sn.lines;
+      }
+      setSnapLines(lines);
+      setProject((p) =>
+        d.layer && d.orig
+          ? updateLayer(p, d.id, (l) => moveLayer(l, ddx, ddy, format.width, format.height, d.orig!))
+          : setAdjust(p, d.id, { ...d.adj, dx: Math.round(d.adj.dx + ddx), dy: Math.round(d.adj.dy + ddy) }),
+      );
+    } else {
+      const cx = d.box.x + d.box.w / 2,
+        cy = d.box.y + d.box.h / 2;
+      const k = Math.max(0.05, Math.hypot(x - cx, y - cy) / Math.max(1, Math.hypot(d.x0 - cx, d.y0 - cy)));
+      setProject((p) => {
+        if (d.layer && d.orig) {
+          const scaled = scaleLayer(d.orig, k);
+          return scaled ? updateLayer(p, d.id, () => scaled) : p;
+        }
+        return setAdjust(p, d.id, { ...d.adj, s: Math.round(Math.min(5, Math.max(0.2, d.adj.s * k)) * 1000) / 1000 });
+      });
+    }
+  };
+  const onPointerUp = () => {
+    drag.current = null;
+    setSnapLines([]);
+  };
 
   const setProp = (key: string, v: unknown) => setProject((p) => ({ ...p, props: { ...p.props, [key]: v } }));
 
   const chooseComposition = (id: string) => {
     if (id === project.composition) return;
     memory.current.set(project.composition, project.props);
+    setSelected(null);
     const next = getComposition(id);
     setProject((p) => ({
       ...p,
@@ -283,7 +433,15 @@ export function App() {
       </aside>
 
       <main className="stage">
-        <div className="canvas-wrap" style={{ aspectRatio: `${format.width} / ${format.height}` }}>
+        <div
+          ref={wrapRef}
+          className="canvas-wrap"
+          style={{ aspectRatio: `${format.width} / ${format.height}`, cursor }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={() => setHover(null)}
+        >
           <canvas ref={canvasRef} width={format.width} height={format.height} />
           <canvas ref={overlayRef} className="overlay" width={format.width} height={format.height} />
         </div>
@@ -379,7 +537,15 @@ export function App() {
               Valori del modello
             </button>
           </div>
-          <FieldList fields={comp.fields} values={project.props} onChange={setProp} ctx={{ strict: project.strict }} />
+          <ElementsPanel
+            elements={elements}
+            selected={selected}
+            project={project}
+            onSelect={setSelected}
+            onChange={setProject}
+            onResetAll={() => setProject((p) => resetAll(p))}
+          />
+          <FieldList fields={comp.fields} values={project.props} onChange={setProp} ctx={{ strict: project.strict, selected, onSelect: setSelected }} />
         </div>
       </aside>
 

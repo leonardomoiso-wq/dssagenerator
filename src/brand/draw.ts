@@ -433,6 +433,16 @@ export function logotypeWidth(ctx: CanvasRenderingContext2D, cap: number) {
 // Etichetta di serie, freccia, pulsante (p. 41)
 // --------------------------------------------------------------------------
 
+/** Larghezza dell'etichetta di serie. */
+export function labelWidth(ctx: CanvasRenderingContext2D, text: string, s: number) {
+  ctx.save();
+  ctx.font = font('titolo', 600, 30 * s);
+  (ctx as any).letterSpacing = '0px';
+  const w = ctx.measureText(text).width + 48 * s;
+  ctx.restore();
+  return w;
+}
+
 /** Etichetta di serie: SemiBold 30 px, contorno 1 px, estremità arrotondate. cy = centro verticale. */
 export function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, cy: number, s: number, color: string, alpha = 1) {
   if (!text) return 0;

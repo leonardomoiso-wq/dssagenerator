@@ -130,3 +130,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .canvas-wrap { height: auto; width: 100%; }
   .left, .right { border: 0; }
 }
+
+.canvas-wrap { touch-action: none; user-select: none; }
+.elements .help { margin: 4px 0 8px; }
+.el-list { list-style: none; padding: 0; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.el-list li { display: flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px; border-bottom: 1px solid var(--line); cursor: pointer; background: #fff; font-size: 13px; }
+.el-list li:last-child { border-bottom: 0; }
+.el-list li.on { background: var(--lilla); }
+.el-list li.off span { color: var(--muted); text-decoration: line-through; }
+.el-list li span { flex: 1; }
+.el-list em { font-style: normal; font-size: 11px; color: var(--viola); }
+.el-props { border-left: 3px solid var(--viola); padding-left: 10px; margin-bottom: 8px; }

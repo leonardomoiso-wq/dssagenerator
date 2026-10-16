@@ -5,7 +5,7 @@ import { drawDuotone, drawImageCover, partsClipPath, partStates } from '../brand
 import { getSymbol } from '../brand/symbols';
 import { DUOTONE, LILLA_SEGNAPOSTO, PALETTE, resolveColor } from '../brand/tokens';
 import { clamp, Easing, getEasing } from '../engine/anim';
-import { drawText, layoutText, textAnimEnd, type TextAnim } from '../engine/text';
+import { layoutText, textAnimEnd, type TextAnim } from '../engine/text';
 import type { Composition, Env, FrameInfo, Props } from '../engine/types';
 import {
   checkTextContrast,
@@ -15,6 +15,7 @@ import {
   exitProgress,
   fondoFields,
   inkFor,
+  placeText,
   ritmoFields,
   styleOf,
   t0,
@@ -22,7 +23,7 @@ import {
   titleStyle,
   titoloStileField,
 } from './common';
-import { drawSymbol, fillOf, motionOf, symbolEnd, symbolFields } from './symbol-helpers';
+import { fillOf, motionOf, placeSymbol, symbolEnd, symbolFields } from './symbol-helpers';
 
 const W = (f: FrameInfo) => f.width - f.safe.left - f.safe.right;
 
@@ -110,18 +111,18 @@ export const soloTesto: Composition = {
     const start = t0(f, p, env) + env.sec(0.25);
     const out = exitProgress(f, p);
     const o = textOpts(p, env, start, out);
-    drawText(ctx, lt, f.safe.left, y, { ...o, color: ink, frame: f.frame });
+    placeText(ctx, env, 'titolo', 'Titolo', lt, f.safe.left, y, { ...o, color: ink, frame: f.frame });
     let end = textAnimEnd(lt, o);
     y += lt.height;
     if (p.sottotitolo) {
       y += g1;
-      drawText(ctx, ls, f.safe.left, y, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
+      placeText(ctx, env, 'sottotitolo', 'Sottotitolo', ls, f.safe.left, y, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
       end = textAnimEnd(ls, { ...o, start: end - env.sec(0.3) });
       y += ls.height;
     }
     if (p.firma) {
       y += g2;
-      drawText(ctx, lf, f.safe.left, y, { ...o, anim: 'dissolvenza', start: end - env.sec(0.2), color: ink, frame: f.frame });
+      placeText(ctx, env, 'firma', 'Firma', lf, f.safe.left, y, { ...o, anim: 'dissolvenza', start: end - env.sec(0.2), color: ink, frame: f.frame });
     }
     drawFreccia(ctx, f, p, env, ink, end);
   },
@@ -153,7 +154,7 @@ function renderSymbolCover(ctx: CanvasRenderingContext2D, f: FrameInfo, p: Props
   }
   const fill = fillOf(p, f, ink, env);
   const m = motionOf(p, f, env, start + env.sec(0.1), out);
-  drawSymbol(ctx, p.simbolo, x, y, size, fill, m);
+  placeSymbol(ctx, env, p.simbolo, x, y, size, fill, m);
 
   // Testi in alto.
   const w = W(f);
@@ -164,7 +165,7 @@ function renderSymbolCover(ctx: CanvasRenderingContext2D, f: FrameInfo, p: Props
   const titolo = p.usaNome ? getSymbol(p.simbolo).name : p.titolo;
   if (titolo) {
     const lt = layoutText(ctx, titolo, titleStyle(p, titolo, s), w);
-    drawText(ctx, lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
+    placeText(ctx, env, 'titolo', 'Titolo', lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
     end = textAnimEnd(lt, o);
     ty += lt.height + 40 * s;
   }
@@ -173,7 +174,7 @@ function renderSymbolCover(ctx: CanvasRenderingContext2D, f: FrameInfo, p: Props
     const st = styleOf('testo38', s);
     checkTextContrast(env, ink, p.fondo, st);
     const lt = layoutText(ctx, testo, st, w * 0.92);
-    drawText(ctx, lt, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
+    placeText(ctx, env, 'testo', 'Testo', lt, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
     end = textAnimEnd(lt, { ...o, start: end - env.sec(0.3) });
   }
   drawFreccia(ctx, f, p, env, ink, Math.max(end, symbolEnd(p.simbolo, m)));
@@ -285,7 +286,7 @@ export const cifra: Composition = {
     if (p.mostraSimbolo) {
       const size = (f.width * p.dimensione) / 100;
       const m = motionOf(p, f, env, start + env.sec(0.6), out);
-      drawSymbol(ctx, p.simbolo, f.width - size * 0.82, f.height - size * 0.78, size, fillOf(p, f, ink, env), m);
+      placeSymbol(ctx, env, p.simbolo, f.width - size * 0.82, f.height - size * 0.78, size, fillOf(p, f, ink, env), m);
     }
     // Cifra.
     const nSize = (p.corpoCifra ?? 400) * s;
@@ -298,14 +299,14 @@ export const cifra: Composition = {
     const appear = getEasing(p.curva)(clamp((f.frame - start - env.sec(0.1)) / env.sec(0.6)));
     ctx.save();
     ctx.globalAlpha *= appear * (1 - out);
-    drawText(ctx, lt, f.safe.left - nSize * 0.03, y + (1 - appear) * 40 * s, { color: ink });
+    placeText(ctx, env, 'cifra', 'Cifra', lt, f.safe.left - nSize * 0.03, y + (1 - appear) * 40 * s, { color: ink });
     ctx.restore();
     let x2 = f.safe.left + ln.width + 18 * s;
     if (p.unita) {
       const us = styleOf('testo46', s);
       const lu = layoutText(ctx, p.unita, { ...us, weight: 600 }, f.width);
       const up = clamp((f.frame - start - env.sec(1.1)) / env.sec(0.5));
-      drawText(ctx, lu, x2, y + ln.capHeight - lu.capHeight, { color: ink, anim: 'sali', frame: up * 30, start: 0, dur: 30, out });
+      placeText(ctx, env, 'unita', 'Accanto alla cifra', lu, x2, y + ln.capHeight - lu.capHeight, { color: ink, anim: 'sali', frame: up * 30, start: 0, dur: 30, out });
       x2 += lu.width;
     }
     // Titolo e testo.
@@ -314,7 +315,7 @@ export const cifra: Composition = {
     let end = start + env.sec(0.8);
     if (p.titolo) {
       const l = layoutText(ctx, p.titolo, titleStyle(p, p.titolo, s), W(f));
-      drawText(ctx, l, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
+      placeText(ctx, env, 'titolo', 'Titolo', l, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
       end = textAnimEnd(l, o);
       ty += l.height + 36 * s;
     }
@@ -322,7 +323,7 @@ export const cifra: Composition = {
       const st = styleOf('testo38', s);
       checkTextContrast(env, ink, p.fondo, st);
       const l = layoutText(ctx, p.testo, st, W(f) * 0.7);
-      drawText(ctx, l, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
+      placeText(ctx, env, 'testo', 'Testo', l, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
       end = textAnimEnd(l, { ...o, start: end - env.sec(0.3) });
     }
     drawFreccia(ctx, f, p, env, ink, end);
@@ -381,17 +382,17 @@ export const duotono: Composition = {
     const out = exitProgress(f, p);
     if (p.mostraSimbolo) {
       const size = (f.width * p.dimensione) / 100;
-      drawSymbol(ctx, p.simbolo, f.width - size * 0.8, f.height - size * 0.75, size, fillOf(p, f, ink, env), motionOf(p, f, env, start + env.sec(0.5), out));
+      placeSymbol(ctx, env, p.simbolo, f.width - size * 0.8, f.height - size * 0.75, size, fillOf(p, f, ink, env), motionOf(p, f, env, start + env.sec(0.5), out));
     }
     const o = textOpts(p, env, start + env.sec(0.25), out);
     let ty = top + 60 * s;
     const lt = layoutText(ctx, p.titolo, titleStyle(p, p.titolo, s), W(f));
-    drawText(ctx, lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
+    placeText(ctx, env, 'titolo', 'Titolo', lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
     let end = textAnimEnd(lt, o);
     ty += lt.height + 32 * s;
     if (p.testo) {
       const l = layoutText(ctx, p.testo, styleOf('testo38', s), W(f));
-      drawText(ctx, l, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
+      placeText(ctx, env, 'testo', 'Testo', l, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
       end = textAnimEnd(l, { ...o, start: end - env.sec(0.3) });
     }
     drawFreccia(ctx, f, props, env, ink, end);
@@ -437,14 +438,14 @@ export const finestra: Composition = {
     const o = textOpts(p, env, start + env.sec(0.25), out);
     let ty = top + 60 * s;
     const lt = layoutText(ctx, titolo, titleStyle(p, titolo, s), W(f));
-    drawText(ctx, lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
+    placeText(ctx, env, 'titolo', 'Titolo', lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
     let end = textAnimEnd(lt, o);
     ty += lt.height + 32 * s;
     if (testo) {
       const st = styleOf('testo38', s);
       checkTextContrast(env, ink, p.fondo, st);
       const l = layoutText(ctx, testo, st, W(f) * 0.9);
-      drawText(ctx, l, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
+      placeText(ctx, env, 'testo', 'Testo', l, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
       end = textAnimEnd(l, { ...o, start: end - env.sec(0.3) });
       ty += l.height;
     }
@@ -455,6 +456,7 @@ export const finestra: Composition = {
     const m = motionOf(p, f, env, start + env.sec(0.5), out);
     const states = partStates(def.parts, m);
     const clip = partsClipPath(def.parts, x, y, size, states);
+    env.place('finestra', 'Finestra con la fotografia', { x, y, w: size, h: size }, () => {
     const img = env.image(p.foto);
     if (img) {
       ctx.save();
@@ -463,6 +465,7 @@ export const finestra: Composition = {
       drawImageCover(ctx, img, x, y, size, size, { zoom: z, fx: p.fuocoX / 100, fy: p.fuocoY / 100 });
       ctx.restore();
     } else placeholder(ctx, x, y, size, size, s, clip);
+    });
     drawFreccia(ctx, f, p, env, ink, end);
   },
 };
@@ -512,14 +515,14 @@ export const ritratto: Composition = {
     const o = textOpts(p, env, start + env.sec(0.25), out);
     let ty = top + 60 * s;
     const lq = layoutText(ctx, p.citazione, { ...styleOf('titolo80', s), size: 64 * s, lineHeight: 1.1 }, W(f));
-    drawText(ctx, lq, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
+    placeText(ctx, env, 'citazione', 'Citazione', lq, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
     let end = textAnimEnd(lq, o);
     ty += lq.height + 44 * s;
     const ln = layoutText(ctx, p.nome, { ...styleOf('fonte26', s), weight: 600 }, W(f));
-    drawText(ctx, ln, f.safe.left, ty, { ...o, anim: 'dissolvenza', start: end - env.sec(0.2), color: ink, frame: f.frame });
+    placeText(ctx, env, 'nome', 'Nome', ln, f.safe.left, ty, { ...o, anim: 'dissolvenza', start: end - env.sec(0.2), color: ink, frame: f.frame });
     ty += ln.height + 12 * s;
     const lr = layoutText(ctx, p.ruolo, styleOf('fonte26', s), W(f));
-    drawText(ctx, lr, f.safe.left, ty, { ...o, anim: 'dissolvenza', start: end, color: ink, frame: f.frame });
+    placeText(ctx, env, 'ruolo', 'Ruolo', lr, f.safe.left, ty, { ...o, anim: 'dissolvenza', start: end, color: ink, frame: f.frame });
     ty += lr.height;
     end += env.sec(0.4);
     // Fotografia.
@@ -529,6 +532,7 @@ export const ritratto: Composition = {
     const cx = f.width * 0.6;
     const bottom = f.height;
     const y0 = Math.max(ty + 40 * s, bottom - size * (p.forma === 'cerchio' ? 1.05 : 0.6));
+    env.place('foto', 'Fotografia', { x: cx - size / 2, y: p.forma === 'semicerchio' ? bottom - size / 2 : y0, w: size, h: p.forma === 'cerchio' ? size : bottom - (p.forma === 'semicerchio' ? bottom - size / 2 : y0) }, () => {
     ctx.save();
     ctx.globalAlpha *= 1 - out;
     let clip: Path2D | undefined;
@@ -564,6 +568,7 @@ export const ritratto: Composition = {
     } else if (clip) placeholder(ctx, rect[0], rect[1], rect[2], rect[3], s, clip);
     else placeholder(ctx, rect[0], rect[1], rect[2], rect[3], s);
     ctx.restore();
+    });
     drawFreccia(ctx, f, p, env, ink, end);
   },
 };
@@ -611,14 +616,14 @@ export const parola: Composition = {
     const y = top + 50 * s;
     ctx.save();
     ctx.globalAlpha *= ein * (1 - out);
-    drawText(ctx, lw, x, y, { color });
+    placeText(ctx, env, 'parola', 'Parola', lw, x, y, { color });
     ctx.restore();
     // Testo.
     const o = textOpts(p, env, start + env.sec(0.5), out);
     const tst = { ...styleOf('fonte26', s), size: 30 * s, weight: 500 };
     const lt = layoutText(ctx, p.testo, tst, W(f) * 0.45);
     const ty = y + lw.capHeight + 70 * s;
-    drawText(ctx, lt, f.safe.left, ty, { ...o, color, frame: f.frame });
+    placeText(ctx, env, 'testo', 'Testo del progetto', lt, f.safe.left, ty, { ...o, color, frame: f.frame });
     // Immagine.
     const img = env.image(p.foto);
     const ia = Easing.out(clamp((f.frame - start - env.sec(0.7)) / env.sec(0.8)));
@@ -626,6 +631,7 @@ export const parola: Composition = {
       by = ty + 40 * s,
       bw = f.width - bx - f.safe.right * 0.5,
       bh = f.height - by - f.safe.bottom;
+    env.place('immagine', 'Immagine', { x: bx, y: by, w: bw, h: bh }, () => {
     if (img) {
       ctx.save();
       ctx.globalAlpha *= ia * (1 - out);
@@ -640,9 +646,10 @@ export const parola: Composition = {
       placeholder(ctx, bx, by, bw, bh, s);
       ctx.restore();
     }
+    });
     if (p.mostraSimbolo) {
       const ss = Math.max(48, (f.width * p.dimensione) / 100);
-      drawSymbol(ctx, p.simbolo, f.safe.left, f.height - f.safe.bottom - ss, ss, fillOf(p, f, ink, env), motionOf(p, f, env, start + env.sec(0.9), out));
+      placeSymbol(ctx, env, p.simbolo, f.safe.left, f.height - f.safe.bottom - ss, ss, fillOf(p, f, ink, env), motionOf(p, f, env, start + env.sec(0.9), out));
     }
   },
 };
@@ -788,11 +795,11 @@ export const tratto: Composition = {
     const o = textOpts(p, env, start + env.sec(0.25), out);
     let ty = top + 60 * s;
     const lt = layoutText(ctx, p.titolo, titleStyle(p, p.titolo, s), W(f));
-    drawText(ctx, lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
+    placeText(ctx, env, 'titolo', 'Titolo', lt, f.safe.left, ty, { ...o, color: ink, frame: f.frame });
     const end = textAnimEnd(lt, o);
     ty += lt.height + 30 * s;
     const ls = layoutText(ctx, p.testo, styleOf('fonte26', s), W(f) * 0.6);
-    drawText(ctx, ls, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
+    placeText(ctx, env, 'testo', 'Testo', ls, f.safe.left, ty, { ...o, start: end - env.sec(0.3), color: ink, frame: f.frame });
     ty += ls.height;
     // Disegno.
     const art = (p.disegno && parseSvg(p.disegno)) || symbolStrokes(p.simbolo);
@@ -805,6 +812,7 @@ export const tratto: Composition = {
     const dy = areaTop + (areaH - vh * k) / 2;
     const total = art.strokes.reduce((a: number, b: Stroke) => a + b.len, 0) || 1;
     const prog = Easing.inOut(clamp((f.frame - start - env.sec(0.5)) / env.sec(p.durataTratto ?? 2.4))) * (1 - out);
+    env.place('disegno', 'Disegno', { x: dx, y: dy, w: vw * k, h: vh * k }, () => {
     let acc = 0;
     ctx.save();
     ctx.translate(dx, dy);
@@ -822,6 +830,7 @@ export const tratto: Composition = {
       ctx.stroke(st.path);
     }
     ctx.restore();
+    });
     drawFreccia(ctx, f, p, env, ink, start + env.sec(0.5 + (p.durataTratto ?? 2.4)));
   },
 };

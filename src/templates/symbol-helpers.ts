@@ -94,6 +94,22 @@ export function drawSymbol(
   drawParts(ctx, parts, x, y, size, fill, states, { globalScale: motion ? breath(motion) : 1 });
 }
 
+/** Simbolo con nome: si può spostare e scalare dall'anteprima. */
+export function placeSymbol(
+  ctx: CanvasRenderingContext2D,
+  env: Env,
+  id: string | Part[],
+  x: number,
+  y: number,
+  size: number,
+  fill: Fill,
+  motion?: ShapeMotion,
+  name = 'simbolo',
+  label = 'Simbolo',
+) {
+  env.place(name, label, { x, y, w: size, h: size }, () => drawSymbol(ctx, id, x, y, size, fill, motion));
+}
+
 /** Fine dell'ingresso del simbolo, in frame. */
 export function symbolEnd(id: string, m: ShapeMotion) {
   const n = getSymbol(id).parts.length;
