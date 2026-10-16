@@ -48,6 +48,8 @@ export const SHAPE_LOOP_OPTIONS: { value: ShapeLoop; label: string }[] = [
 
 export interface ShapeMotion {
   anim: ShapeAnim;
+  /** Battiti trascorsi al secondo t, se le animazioni seguono la musica. */
+  beats?: (t: number) => number;
   /** Frame corrente. */
   frame: number;
   fps: number;
@@ -126,11 +128,13 @@ export function partStates(parts: Part[], m: ShapeMotion): PartState[] {
     // Movimento continuo dopo l'ingresso.
     const tt = m.frame / m.fps;
     if (m.loop === 'onda' && t >= 1) {
-      const ph = tt * 2.2 - rank[i] * 0.55;
+      const b = m.beats?.(tt);
+      const ph = (b !== undefined ? b * Math.PI : tt * 2.2) - rank[i] * 0.55;
       st.scale *= 1 - 0.045 * (0.5 - 0.5 * Math.cos(ph));
     }
     if (m.loop === 'pulsazione' && t >= 1) {
-      const beat = (tt * 1.0 - rank[i] * 0.08) % 1;
+      const x = (m.beats?.(tt) ?? tt) - rank[i] * 0.08;
+      const beat = ((x % 1) + 1) % 1;
       st.scale *= 1 - 0.06 * Math.exp(-beat * 6) * Math.sin(beat * Math.PI);
     }
     if (m.out && m.out > 0) {

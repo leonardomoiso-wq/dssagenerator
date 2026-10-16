@@ -3,7 +3,8 @@ import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import { getFormat } from '../brand/tokens';
 import { dataUrlBytes, makePdf, makeZip } from './files';
 import { durationInFrames, preloadImages, renderFrame } from './render';
-import { renderSeriesFrame, seriesTimeline, slideCount, slideProject, stillFrame } from './series';
+import { audioCodec, encodeAudio, renderTrack } from './audio';
+import { renderSeriesFrame, seriesTimeline, slideCount, slideOffset, slideProject, stillFrame } from './series';
 import type { Project } from './types';
 
 export interface ExportProgress {
@@ -34,7 +35,7 @@ export const QUALITY: Record<string, number> = { alta: 16, media: 10, leggera: 6
 export async function exportMp4(
   project: Project,
   opts: { quality?: keyof typeof QUALITY; onProgress?: (p: ExportProgress) => void; signal?: AbortSignal; series?: boolean } = {},
-): Promise<{ blob: Blob; codec: string }> {
+): Promise<{ blob: Blob; codec: string; audio: string | null }> {
   const format = getFormat(project.format);
   const { width, height } = format;
   const fps = project.fps;
@@ -53,11 +54,24 @@ export async function exportMp4(
   canvas.height = height;
   const ctx = canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' } as CanvasRenderingContext2DSettings)!;
 
+  // Audio: mixaggio della traccia sulla durata del video, poi AAC (o Opus se manca).
+  const offset = tl ? 0 : slideOffset(project);
+  let mixed: AudioBuffer | null = null;
+  let acodec: { codec: string; mux: 'aac' | 'opus' } | null = null;
+  if (project.audio?.src) {
+    mixed = await renderTrack(project.audio, total / fps, offset);
+    acodec = await audioCodec(mixed.sampleRate, mixed.numberOfChannels);
+    if (!acodec) mixed = null;
+  }
+
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
     video: { codec: avc ? 'avc' : 'vp9', width, height, frameRate: fps },
+    ...(mixed && acodec ? { audio: { codec: acodec.mux, numberOfChannels: mixed.numberOfChannels, sampleRate: mixed.sampleRate } } : {}),
     fastStart: 'in-memory',
+    firstTimestampBehavior: 'offset',
   });
+  if (mixed && acodec) await encodeAudio(mixed, acodec.codec, (c, m) => muxer.addAudioChunk(c, m));
   let failure: unknown = null;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
@@ -81,7 +95,7 @@ export async function exportMp4(
     }
     if (failure) throw failure;
     if (tl) renderSeriesFrame(ctx, project, i, tl);
-    else renderFrame(ctx, flat, i);
+    else renderFrame(ctx, flat, i, { timeOffset: offset });
     const vf = new VideoFrame(canvas, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
     encoder.encode(vf, { keyFrame: i % (fps * 2) === 0 });
     vf.close();
@@ -93,7 +107,7 @@ export async function exportMp4(
   encoder.close();
   if (failure) throw failure;
   muxer.finalize();
-  return { blob: new Blob([muxer.target.buffer], { type: 'video/mp4' }), codec };
+  return { blob: new Blob([muxer.target.buffer], { type: 'video/mp4' }), codec, audio: project.audio?.src ? (acodec?.mux ?? 'assente') : null };
 }
 
 export async function exportPng(project: Project, frame: number): Promise<Blob> {

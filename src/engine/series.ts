@@ -165,7 +165,7 @@ export function renderSeriesFrame(ctx: CanvasRenderingContext2D, p: Project, g: 
   const n = tl.starts.length;
   let i = n - 1;
   while (i > 0 && g < tl.starts[i]) i--;
-  const res = renderFrame(ctx, slideProject(p, i), g - tl.starts[i]);
+  const res = renderFrame(ctx, slideProject(p, i), g - tl.starts[i], { timeOffset: tl.starts[i] / p.fps });
   // Nella sovrapposizione la slide successiva entra in dissolvenza.
   const next = i + 1;
   if (next < n && tl.overlap > 0 && g >= tl.starts[next]) {
@@ -173,7 +173,7 @@ export function renderSeriesFrame(ctx: CanvasRenderingContext2D, p: Project, g: 
     const c = mix.c;
     c.width = ctx.canvas.width;
     c.height = ctx.canvas.height;
-    const r2 = renderFrame(c.getContext('2d')!, slideProject(p, next), g - tl.starts[next]);
+    const r2 = renderFrame(c.getContext('2d')!, slideProject(p, next), g - tl.starts[next], { timeOffset: tl.starts[next] / p.fps });
     ctx.save();
     ctx.globalAlpha = Math.min(1, (g - tl.starts[next] + 1) / tl.overlap);
     ctx.drawImage(c, 0, 0);
@@ -181,6 +181,12 @@ export function renderSeriesFrame(ctx: CanvasRenderingContext2D, p: Project, g: 
     return { ...r2, warnings: [...new Set([...res.warnings, ...r2.warnings])], slide: next };
   }
   return { ...res, slide: i };
+}
+
+/** Secondi tra l'inizio della serie e l'inizio della slide attiva (0 senza serie). */
+export function slideOffset(p: Project): number {
+  if (!p.serie || p.serie.slides.length <= 1) return 0;
+  return seriesTimeline(p).starts[p.serie.active] / p.fps;
 }
 
 /** Fotogramma da usare come immagine fissa: l'ultimo, prima dell'eventuale finale animato. */

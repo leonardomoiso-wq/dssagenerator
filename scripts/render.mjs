@@ -9,9 +9,10 @@
 // Richiede: ffmpeg nel PATH; Chromium (playwright install chromium) oppure Chrome
 // installato (--chrome) o un percorso in CHROME_PATH.
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -126,6 +127,7 @@ if (info.slides > 1) console.log(`Serie di ${info.slides} slide${args.slide !== 
 console.log(`Composizione «${project.composition}», ${info.width} × ${info.height}, ${info.fps} fps, ${info.frames} fotogrammi.`);
 
 const warnings = new Set();
+const tempFiles = [];
 const grab = async (i) => {
   const r = await page.evaluate((n) => window.__DSSA__.frame(n), i);
   r.warnings.forEach((w) => warnings.add(w));
@@ -144,11 +146,36 @@ try {
     writeFileSync(out, await grab(parseInt(args.png, 10) || 0));
     console.log('Scritto', out);
   } else {
+    // Musica del progetto: stesso inviluppo dell'anteprima (volume, entrata, uscita).
+    const seconds = info.frames / info.fps;
+    const audioIn = [];
+    const audioOut = [];
+    const track = project.audio;
+    if (track?.src && !args['no-audio']) {
+      const m = /^data:([^;]+);base64,(.*)$/s.exec(track.src);
+      if (m) {
+        const ext = { 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac', 'audio/ogg': 'ogg', 'audio/flac': 'flac' }[m[1]] ?? 'audio';
+        const file = join(tmpdir(), `dssa-audio-${process.pid}.${ext}`);
+        writeFileSync(file, Buffer.from(m[2], 'base64'));
+        tempFiles.push(file);
+        const off = info.audioOffset ?? 0;
+        const fadeInLeft = Math.max(0, (track.fadeIn ?? 0) - off);
+        const filters = [];
+        if (track.fadeIn > 0 && off < track.fadeIn) filters.push(`afade=t=in:st=0:d=${fadeInLeft.toFixed(3)}`);
+        if (track.fadeOut > 0) filters.push(`afade=t=out:st=${Math.max(0, seconds - track.fadeOut).toFixed(3)}:d=${track.fadeOut}`);
+        filters.push(`volume=${track.volume ?? 1}`, 'apad');
+        audioIn.push('-ss', String((track.start ?? 0) + off), '-i', file);
+        audioOut.push('-map', '0:v', '-map', '1:a', '-filter:a', filters.join(','), '-c:a', 'aac', '-b:a', '192k', '-ar', '48000');
+      }
+    }
     const ff = spawn(
       'ffmpeg',
       [
         '-y', '-loglevel', 'error',
         '-f', 'image2pipe', '-framerate', String(info.fps), '-c:v', 'png', '-i', '-',
+        ...audioIn,
+        ...audioOut,
+        '-t', seconds.toFixed(3),
         '-c:v', 'libx264', '-preset', args.preset ?? 'slow', '-crf', String(args.crf ?? 16),
         '-profile:v', 'high', '-pix_fmt', 'yuv420p',
         '-vf', 'scale=out_color_matrix=bt709:out_range=tv',
@@ -171,6 +198,7 @@ try {
   }
   if (warnings.size) console.log('Avvisi del manuale:\n- ' + [...warnings].join('\n- '));
 } finally {
+  for (const f of tempFiles) rmSync(f, { force: true });
   await browser.close();
   server.close();
 }

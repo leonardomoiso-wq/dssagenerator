@@ -52,6 +52,14 @@ Esportazioni della serie: **PNG carosello** (.zip, una immagine per slide, per I
 **PDF LinkedIn** (una pagina per slide, p. 58), **Video della serie** (un MP4 con le slide in sequenza,
 a taglio netto o in dissolvenza). L'anteprima passa da «Slide» a «Serie intera» per rivedere il video.
 
+**Audio**: nel pannello «Audio» si carica una musica (MP3, WAV, M4A…). Sulla forma d'onda si
+clicca il punto da cui far partire il video; si regolano volume, entrata e uscita in dissolvenza.
+In anteprima la musica suona a tempo con i fotogrammi (anche saltando nella timeline o nella serie).
+«Rileva» stima i battiti al minuto; con «Animazioni a tempo di musica» la pulsazione e l'onda dei
+simboli e le rotazioni di 90° delle composizioni cadono sui battiti. La traccia entra nel MP4:
+AAC dalla riga di comando e da Chrome/Edge che lo supportano, altrimenti Opus con avviso. Nel video
+della serie la musica scorre continua su tutte le slide.
+
 **Annulla e ripeti**: le frecce ↶ ↷ in alto (o Ctrl/Cmd+Z e Ctrl/Cmd+Maiusc+Z) tornano indietro e
 avanti tra le modifiche. Un trascinamento intero, una serie di spostamenti con le frecce o una
 digitazione continua contano come un solo passo.
@@ -97,7 +105,7 @@ npm run render -- --project serie.json --slide 2 --out slide2.mp4  # una sola sl
 npm run render -- --project serie.json --carosello zip             # PNG del carosello (o pdf)
 ```
 
-Opzioni: `--fps`, `--duration`, `--crf` (qualità, predefinito 16), `--props valori.json` (con
+Opzioni: `--no-audio` (esporta senza musica), `--fps`, `--duration`, `--crf` (qualità, predefinito 16), `--props valori.json` (con
 `--composition`), `--chrome` (usa Chrome installato). Richiede `ffmpeg` nel PATH e Chromium
 (`npx playwright install chromium`) o Chrome.
 

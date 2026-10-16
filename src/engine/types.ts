@@ -1,3 +1,4 @@
+import type { AudioTrack } from './audio';
 import type { Series } from './series';
 import type { FormatSpec, Safe } from '../brand/tokens';
 
@@ -100,6 +101,8 @@ export interface Env {
   warn: (msg: string) => void;
   /** Immagini già caricate, per chiave (data URL). */
   image: (src: string | undefined) => HTMLImageElement | null;
+  /** Battiti della musica al secondo t del video; undefined se le animazioni non seguono la musica. */
+  beats?: (t: number) => number;
   /** Frame da secondi, tenendo conto della velocità scelta. */
   sec: (s: number) => number;
   /** Il carattere ufficiale è caricato? */
@@ -136,6 +139,8 @@ export interface Project {
   speed: number;
   strict: boolean;
   props: Props;
+  /** Traccia audio del video. */
+  audio?: AudioTrack;
   /** Presente se il progetto è una serie di slide (carosello). */
   serie?: Series;
 }

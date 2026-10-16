@@ -76,6 +76,7 @@ export function motionOf(props: Props, f: FrameInfo, env: Env, start: number, ou
     loop: props.loop,
     order: props.ordine,
     out,
+    beats: env.beats,
   };
 }
 

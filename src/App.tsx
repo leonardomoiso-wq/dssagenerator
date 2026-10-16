@@ -3,7 +3,9 @@ import { FORMATS, getFormat } from './brand/tokens';
 import { download, exportCarousel, exportMp4, exportPng, fileName, QUALITY, supportedCodec } from './engine/export';
 import { addFontFiles, clearStoredFonts, fontState, onFontsChange } from './engine/fonts';
 import { durationInFrames, renderFrame } from './engine/render';
-import { renderSeriesFrame, seriesTimeline, slideCount, slideProject } from './engine/series';
+import { renderSeriesFrame, seriesTimeline, slideCount, slideOffset, slideProject } from './engine/series';
+import { envelope } from './engine/audio';
+import { AudioPanel } from './ui/AudioPanel';
 import { SeriesBar } from './ui/SeriesBar';
 import { clearTextCaches } from './engine/text';
 import { clearMarkCaches } from './brand/draw';
@@ -117,6 +119,11 @@ export function App() {
   const seriesMode = !!project.serie && project.serie.anteprima === 'serie' && slideCount(project) > 1;
   const timeline = useMemo(() => (seriesMode ? seriesTimeline(project) : null), [seriesMode, project]);
   const total = timeline ? timeline.total : durationInFrames(slideProject(project), comp);
+  // Secondi tra l'inizio della serie e ciò che si guarda: tiene la musica a tempo.
+  const previewOffset = useMemo(() => (timeline ? 0 : slideOffset(project)), [timeline, project]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  if (!audioRef.current && typeof Audio !== 'undefined') audioRef.current = new Audio();
+  const [muted, setMuted] = useState(false);
   const auto = autoDuration(comp, project.props);
 
   // Ridisegno quando cambiano i caratteri.
@@ -136,7 +143,12 @@ export function App() {
       try {
         localStorage.setItem(STORAGE, JSON.stringify(project));
       } catch {
-        /* immagini troppo grandi per l'archivio del browser: si salva con «Salva progetto» */
+        // Archivio del browser pieno (audio o immagini grandi): si tiene almeno il resto.
+        try {
+          localStorage.setItem(STORAGE, JSON.stringify({ ...project, audio: undefined }));
+        } catch {
+          /* si salva con «Salva progetto» */
+        }
       }
     }, 400);
     return () => clearTimeout(id);
@@ -153,13 +165,13 @@ export function App() {
       if (!c) return;
       const ctx = c.getContext('2d', { colorSpace: 'srgb' } as CanvasRenderingContext2DSettings)!;
       // Serie intera in sola visione; la slide attiva si modifica (ritocchi compresi).
-      const res = timeline ? renderSeriesFrame(ctx, project, fr, timeline) : renderFrame(ctx, slideProject(project), fr);
+      const res = timeline ? renderSeriesFrame(ctx, project, fr, timeline) : renderFrame(ctx, slideProject(project), fr, { timeOffset: previewOffset });
       setWarnings((w) => (w.join('|') === res.warnings.join('|') ? w : res.warnings));
       const els = timeline ? [] : res.elements;
       setElements((old) => (JSON.stringify(old) === JSON.stringify(els) ? old : els));
       setError(res.error);
     },
-    [project, timeline],
+    [project, timeline, previewOffset],
   );
 
   useEffect(() => {
@@ -171,6 +183,17 @@ export function App() {
     if (!playing) return;
     let raf = 0;
     const t0 = performance.now() - (frame / project.fps) * 1000;
+    // Musica: parte dal punto giusto della traccia e resta a tempo con i fotogrammi.
+    const track = project.audio;
+    const el = audioRef.current;
+    const fps = project.fps;
+    let lastFr = frame;
+    if (track?.src && el) {
+      if (el.src !== track.src) el.src = track.src;
+      el.currentTime = track.start + previewOffset + frame / fps;
+      el.volume = 0;
+      el.play().catch(() => null);
+    }
     const tick = (now: number) => {
       let fr = Math.floor(((now - t0) / 1000) * project.fps);
       if (fr >= total) {
@@ -183,12 +206,21 @@ export function App() {
       }
       draw(fr);
       setFrame(fr);
+      if (track?.src && el) {
+        const expected = track.start + previewOffset + fr / fps;
+        if (fr < lastFr || Math.abs(el.currentTime - expected) > 0.12) el.currentTime = expected;
+        el.volume = muted ? 0 : Math.min(1, envelope(track, previewOffset + fr / fps, previewOffset + total / fps));
+      }
+      lastFr = fr;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      el?.pause();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, draw, total, loop]);
+  }, [playing, draw, total, loop, muted]);
 
   useEffect(() => {
     if (frame >= total) setFrame(total - 1);
@@ -422,10 +454,11 @@ export function App() {
     const frames = series ? seriesTimeline(project).total : durationInFrames(slideProject(project));
     setExporting({ frame: 0, total: frames });
     try {
-      const { blob, codec } = await exportMp4(project, { quality, onProgress: setExporting, signal: ctrl.signal, series });
+      const { blob, codec, audio } = await exportMp4(project, { quality, onProgress: setExporting, signal: ctrl.signal, series });
       download(blob, fileName(project, series ? 'serie.mp4' : 'mp4'));
       setNotice(
         `MP4 esportato${series ? ` (serie di ${slideCount(project)} slide)` : ''}: ${format.width} × ${format.height}, ${project.fps} fps, ${(frames / project.fps).toFixed(1)} s, ${(blob.size / 1e6).toFixed(1)} MB.` +
+          (audio === 'aac' ? ' Audio AAC.' : audio === 'opus' ? ' Audio in Opus: questo browser non codifica AAC; per Instagram meglio npm run render.' : audio === 'assente' ? ' Audio non codificato da questo browser: usa npm run render.' : '') +
           (codec.startsWith('avc') ? '' : ' Attenzione: questo browser non codifica H.264 e il video è in VP9, non adatto a Instagram. Usa Chrome o Edge, oppure npm run render.'),
       );
     } catch (e) {
@@ -618,6 +651,18 @@ export function App() {
             <span className="label">Regole del manuale</span>
             <small className="help">Attive: solo i colori della palette e le varianti previste. Disattive: colori liberi, rotazioni e corpi fuori scala, con avviso.</small>
           </label>
+          <details className="group" open={!!project.audio}>
+            <summary>Audio</summary>
+            <AudioPanel
+              project={project}
+              setProject={setProject}
+              videoSeconds={total / project.fps}
+              offset={previewOffset}
+              muted={muted}
+              setMuted={setMuted}
+              onNotice={setNotice}
+            />
+          </details>
         </section>
         <div className="inspector">
           <div className="inspector-head">

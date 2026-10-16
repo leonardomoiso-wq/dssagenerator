@@ -357,8 +357,16 @@ export const composizione: Composition = {
       if (every > 0) {
         const after = f.frame - (start + spread + env.sec(0.8));
         if (after > 0) {
-          const tick = Math.floor(after / every);
-          const fr = after / every - tick;
+          // Con la musica agganciata la battuta dura un numero intero di battiti.
+          let pos = after / every;
+          if (env.beats) {
+            const bpm = env.beats(61) - env.beats(1);
+            const perBeat = Math.max(1, Math.round(((p.rotazioni ?? 1.6) * bpm) / 60));
+            const t1 = (start + spread + env.sec(0.8)) / f.fps;
+            pos = (env.beats(f.time) - env.beats(t1)) / perBeat;
+          }
+          const tick = Math.floor(pos);
+          const fr = pos - tick;
           const r0 = (((-k) % 3) + 3) % 3;
           const done = tick > r0 ? Math.floor((tick - r0 - 1) / 3) + 1 : 0;
           rot += done * (Math.PI / 2);

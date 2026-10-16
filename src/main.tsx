@@ -18,6 +18,7 @@ if (params.has('headless')) {
   let project: Project | null = null;
   let flat: Project | null = null;
   let tl: Timeline | null = null;
+  let timeOffset = 0;
   const ready = loadFonts();
   (window as any).__DSSA__ = {
     ready: ready.then(() => true),
@@ -35,7 +36,10 @@ if (params.has('headless')) {
       canvas.width = fmt.width;
       canvas.height = fmt.height;
       await preloadImages(p);
-      return { width: fmt.width, height: fmt.height, fps: p.fps, frames: tl ? tl.total : durationInFrames(flat), slides: slideCount(p) };
+      // Scarto della slide nella serie, per far partire la musica dal punto giusto.
+      const audioOffset = !single || slideCount(p) <= 1 ? 0 : seriesTimeline(p).starts[opts.slide ?? p.serie?.active ?? 0] / p.fps;
+      timeOffset = tl ? 0 : audioOffset;
+      return { width: fmt.width, height: fmt.height, fps: p.fps, frames: tl ? tl.total : durationInFrames(flat), slides: slideCount(p), audioOffset };
     },
     /** Carosello come ZIP di PNG o PDF, in base64. */
     async carousel(kind: 'zip' | 'pdf') {
@@ -49,7 +53,7 @@ if (params.has('headless')) {
     frame(i: number, type = 'image/png') {
       if (!project) throw new Error('Nessun progetto');
       const ctx = canvas.getContext('2d')!;
-      const res = tl ? renderSeriesFrame(ctx, project, i, tl) : renderFrame(ctx, flat!, i);
+      const res = tl ? renderSeriesFrame(ctx, project, i, tl) : renderFrame(ctx, flat!, i, { timeOffset });
       return { data: canvas.toDataURL(type), warnings: res.warnings, error: res.error };
     },
   };

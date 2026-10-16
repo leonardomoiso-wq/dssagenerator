@@ -3,6 +3,7 @@
 import { getFormat, PALETTE, resolveColor } from '../brand/tokens';
 import { autoDuration, getComposition } from '../templates';
 import { clamp, Easing } from './anim';
+import { beatsAt } from './audio';
 import { fontState } from './fonts';
 import type { Adjust, Box, Composition, ElementKind, Env, FrameInfo, PlacedElement, Project, Props } from './types';
 
@@ -121,7 +122,8 @@ function transformBox(b: Box, a: Adjust): Box {
   return { x: cx - w / 2 + a.dx, y: cy - h / 2 + a.dy, w, h };
 }
 
-export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, frame: number): RenderResult {
+/** opts.timeOffset: secondi dall'inizio della serie, per tenere la musica a tempo tra le slide. */
+export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, frame: number, opts: { timeOffset?: number } = {}): RenderResult {
   const comp = getComposition(project.composition);
   const format = getFormat(project.format);
   const fps = project.fps;
@@ -168,6 +170,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, project: Project, fra
     warn: (m) => warnings.add(m),
     image: (src) => (src ? images.get(src) ?? (loadImage(src), null) : null),
     sec: (s) => (s * fps) / speed,
+    beats: project.audio?.sync && project.audio.bpm ? (t) => beatsAt(project.audio, t, opts.timeOffset ?? 0) : undefined,
     fontsReady: { basier: fontState.basier, wotfard: fontState.wotfard },
   };
   const f: FrameInfo = {

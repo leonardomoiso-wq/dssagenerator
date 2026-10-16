@@ -169,3 +169,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .seg button.on { background: var(--nero); color: #fff; }
 .series .help, .help.center { font-size: 11.5px; color: var(--muted); margin: 6px 0 0; text-align: center; }
 .stage.has-series .canvas-wrap { height: min(calc(100vh - 380px), 1000px); }
+
+.audio { display: flex; flex-direction: column; gap: 4px; }
+.audio-head { display: flex; align-items: center; gap: 4px; }
+.audio-head b { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wave { width: 100%; height: 56px; background: #f7f6fd; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; display: block; }
