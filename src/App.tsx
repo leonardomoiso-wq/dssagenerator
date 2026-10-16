@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FORMATS, getFormat } from './brand/tokens';
-import { download, exportMp4, exportPng, fileName, QUALITY, supportedCodec } from './engine/export';
+import { download, exportCarousel, exportMp4, exportPng, fileName, QUALITY, supportedCodec } from './engine/export';
 import { addFontFiles, clearStoredFonts, fontState, onFontsChange } from './engine/fonts';
 import { durationInFrames, renderFrame } from './engine/render';
+import { renderSeriesFrame, seriesTimeline, slideCount, slideProject } from './engine/series';
+import { SeriesBar } from './ui/SeriesBar';
 import { clearTextCaches } from './engine/text';
 import { clearMarkCaches } from './brand/draw';
 import { defaultsOf, type Adjust, type Layer, type PlacedElement, type Project, type Props } from './engine/types';
@@ -112,7 +114,9 @@ export function App() {
 
   const comp = getComposition(project.composition);
   const format = getFormat(project.format);
-  const total = durationInFrames(project, comp);
+  const seriesMode = !!project.serie && project.serie.anteprima === 'serie' && slideCount(project) > 1;
+  const timeline = useMemo(() => (seriesMode ? seriesTimeline(project) : null), [seriesMode, project]);
+  const total = timeline ? timeline.total : durationInFrames(slideProject(project), comp);
   const auto = autoDuration(comp, project.props);
 
   // Ridisegno quando cambiano i caratteri.
@@ -148,12 +152,14 @@ export function App() {
       const c = canvasRef.current;
       if (!c) return;
       const ctx = c.getContext('2d', { colorSpace: 'srgb' } as CanvasRenderingContext2DSettings)!;
-      const res = renderFrame(ctx, project, fr);
+      // Serie intera in sola visione; la slide attiva si modifica (ritocchi compresi).
+      const res = timeline ? renderSeriesFrame(ctx, project, fr, timeline) : renderFrame(ctx, slideProject(project), fr);
       setWarnings((w) => (w.join('|') === res.warnings.join('|') ? w : res.warnings));
-      setElements((old) => (JSON.stringify(old) === JSON.stringify(res.elements) ? old : res.elements));
+      const els = timeline ? [] : res.elements;
+      setElements((old) => (JSON.stringify(old) === JSON.stringify(els) ? old : els));
       setError(res.error);
     },
-    [project],
+    [project, timeline],
   );
 
   useEffect(() => {
@@ -409,16 +415,17 @@ export function App() {
     }
   };
 
-  const doExport = async () => {
+  const doExport = async (series = seriesMode) => {
     setPlaying(false);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setExporting({ frame: 0, total });
+    const frames = series ? seriesTimeline(project).total : durationInFrames(slideProject(project));
+    setExporting({ frame: 0, total: frames });
     try {
-      const { blob, codec } = await exportMp4(project, { quality, onProgress: setExporting, signal: ctrl.signal });
-      download(blob, fileName(project, 'mp4'));
+      const { blob, codec } = await exportMp4(project, { quality, onProgress: setExporting, signal: ctrl.signal, series });
+      download(blob, fileName(project, series ? 'serie.mp4' : 'mp4'));
       setNotice(
-        `MP4 esportato: ${format.width} × ${format.height}, ${project.fps} fps, ${(total / project.fps).toFixed(1)} s, ${(blob.size / 1e6).toFixed(1)} MB.` +
+        `MP4 esportato${series ? ` (serie di ${slideCount(project)} slide)` : ''}: ${format.width} × ${format.height}, ${project.fps} fps, ${(frames / project.fps).toFixed(1)} s, ${(blob.size / 1e6).toFixed(1)} MB.` +
           (codec.startsWith('avc') ? '' : ' Attenzione: questo browser non codifica H.264 e il video è in VP9, non adatto a Instagram. Usa Chrome o Edge, oppure npm run render.'),
       );
     } catch (e) {
@@ -431,6 +438,20 @@ export function App() {
   };
 
   const doPng = async () => download(await exportPng(project, frame), fileName(project, 'png'));
+
+  const doStills = async (kind: 'zip' | 'pdf') => {
+    setPlaying(false);
+    setExporting({ frame: 0, total: slideCount(project) });
+    try {
+      const blob = await exportCarousel(project, kind, setExporting);
+      download(blob, fileName(project, kind === 'zip' ? 'carosello.zip' : 'linkedin.pdf'));
+      setNotice(`${kind === 'zip' ? 'Archivio PNG' : 'PDF'} esportato: ${slideCount(project)} slide, ${(blob.size / 1e6).toFixed(1)} MB.`);
+    } catch (e) {
+      setNotice((e as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const groups = useMemo(() => {
     const g = new Map<string, typeof COMPOSITIONS>();
@@ -478,7 +499,7 @@ export function App() {
             <option value="media">Qualità media</option>
             <option value="leggera">File leggero</option>
           </select>
-          <button className="btn primary" onClick={doExport} disabled={!!exporting} title={codecOk === false ? 'Questo browser non codifica H.264: il video uscirà in VP9. Per Instagram usa Chrome, Edge o npm run render.' : 'H.264, pronto per Instagram e LinkedIn'}>
+          <button className="btn primary" onClick={() => doExport()} disabled={!!exporting} title={codecOk === false ? 'Questo browser non codifica H.264: il video uscirà in VP9. Per Instagram usa Chrome, Edge o npm run render.' : 'H.264, pronto per Instagram e LinkedIn'}>
             Esporta MP4{codecOk === false ? ' (VP9)' : ''}
           </button>
         </div>
@@ -498,7 +519,9 @@ export function App() {
         ))}
       </aside>
 
-      <main className="stage">
+      <main className={'stage' + (project.serie ? ' has-series' : '')}>
+        <SeriesBar project={project} setProject={setProject} onExportVideo={() => doExport(true)} onExportStills={doStills} busy={!!exporting} />
+        {timeline && <p className="help center">Anteprima della serie intera: per modificare torna a una slide.</p>}
         <div
           ref={wrapRef}
           className="canvas-wrap"

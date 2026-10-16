@@ -1,3 +1,4 @@
+import type { Series } from './series';
 import type { FormatSpec, Safe } from '../brand/tokens';
 
 // --- Schema dei parametri: genera il pannello di controllo, come gli schemi zod in Remotion ---
@@ -135,4 +136,6 @@ export interface Project {
   speed: number;
   strict: boolean;
   props: Props;
+  /** Presente se il progetto è una serie di slide (carosello). */
+  serie?: Series;
 }

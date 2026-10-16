@@ -41,7 +41,7 @@ function collectImages(v: unknown, out: Set<string>) {
 }
 
 /** Carica tutte le immagini usate dai parametri: va atteso prima di esportare. */
-export async function preloadImages(props: Props) {
+export async function preloadImages(props: Props | Project) {
   const set = new Set<string>();
   collectImages(props, set);
   await Promise.all([...set].map(loadImage));

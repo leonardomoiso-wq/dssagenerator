@@ -1,7 +1,9 @@
 // Esportazione nel browser: MP4 H.264 con WebCodecs, fotogramma PNG, progetto JSON.
 import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import { getFormat } from '../brand/tokens';
+import { dataUrlBytes, makePdf, makeZip } from './files';
 import { durationInFrames, preloadImages, renderFrame } from './render';
+import { renderSeriesFrame, seriesTimeline, slideCount, slideProject, stillFrame } from './series';
 import type { Project } from './types';
 
 export interface ExportProgress {
@@ -31,16 +33,20 @@ export const QUALITY: Record<string, number> = { alta: 16, media: 10, leggera: 6
 
 export async function exportMp4(
   project: Project,
-  opts: { quality?: keyof typeof QUALITY; onProgress?: (p: ExportProgress) => void; signal?: AbortSignal } = {},
+  opts: { quality?: keyof typeof QUALITY; onProgress?: (p: ExportProgress) => void; signal?: AbortSignal; series?: boolean } = {},
 ): Promise<{ blob: Blob; codec: string }> {
   const format = getFormat(project.format);
   const { width, height } = format;
   const fps = project.fps;
-  const total = durationInFrames(project);
+  // Serie intera (slide una dopo l'altra) oppure la sola slide attiva.
+  const asSeries = !!opts.series && slideCount(project) > 1;
+  const tl = asSeries ? seriesTimeline(project) : null;
+  const flat = slideProject(project);
+  const total = tl ? tl.total : durationInFrames(flat);
   const codec = await supportedCodec(width, height, fps, true);
   if (!codec) throw new Error('Questo browser non codifica video con WebCodecs. Usa Chrome o Edge aggiornati, oppure l’esportazione da riga di comando (npm run render).');
   const avc = codec.startsWith('avc');
-  await preloadImages(project.props);
+  await preloadImages(project);
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -74,7 +80,8 @@ export async function exportMp4(
       throw new DOMException('Esportazione annullata', 'AbortError');
     }
     if (failure) throw failure;
-    renderFrame(ctx, project, i);
+    if (tl) renderSeriesFrame(ctx, project, i, tl);
+    else renderFrame(ctx, flat, i);
     const vf = new VideoFrame(canvas, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
     encoder.encode(vf, { keyFrame: i % (fps * 2) === 0 });
     vf.close();
@@ -91,13 +98,38 @@ export async function exportMp4(
 
 export async function exportPng(project: Project, frame: number): Promise<Blob> {
   const format = getFormat(project.format);
-  await preloadImages(project.props);
+  await preloadImages(project);
   const canvas = document.createElement('canvas');
   canvas.width = format.width;
   canvas.height = format.height;
   const ctx = canvas.getContext('2d')!;
-  renderFrame(ctx, project, frame);
+  renderFrame(ctx, slideProject(project), frame);
   return await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG'))), 'image/png'));
+}
+
+/**
+ * Immagini fisse di tutte le slide: ZIP di PNG (carosello Instagram) o PDF (carosello LinkedIn).
+ * Per ogni slide si usa l'ultimo fotogramma prima dell'eventuale finale animato.
+ */
+export async function exportCarousel(project: Project, kind: 'zip' | 'pdf', onProgress?: (p: ExportProgress) => void): Promise<Blob> {
+  const format = getFormat(project.format);
+  await preloadImages(project);
+  const canvas = document.createElement('canvas');
+  canvas.width = format.width;
+  canvas.height = format.height;
+  const ctx = canvas.getContext('2d', { alpha: false } as CanvasRenderingContext2DSettings)!;
+  const n = slideCount(project);
+  const files: { name: string; data: Uint8Array }[] = [];
+  const pages: { jpeg: Uint8Array; width: number; height: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const sp = slideProject(project, i);
+    renderFrame(ctx, sp, stillFrame(sp));
+    if (kind === 'zip') files.push({ name: `${String(i + 1).padStart(2, '0')}-${sp.composition}.png`, data: dataUrlBytes(canvas.toDataURL('image/png')) });
+    else pages.push({ jpeg: dataUrlBytes(canvas.toDataURL('image/jpeg', 0.92)), width: format.width, height: format.height });
+    onProgress?.({ frame: i + 1, total: n });
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  return kind === 'zip' ? makeZip(files) : makePdf(pages);
 }
 
 export function download(blob: Blob, name: string) {

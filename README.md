@@ -44,6 +44,14 @@ Maiusc durante il trascinamento blocca la direzione, i bordi si agganciano ai ma
 post può avere aggiustamenti diversi in versione Story o LinkedIn. Con le regole del manuale attive il
 compositore avvisa se un testo esce dai margini sicuri o viene scalato fuori dalla scala tipografica.
 
+**Serie e caroselli**: «+ Aggiungi una slide» trasforma il progetto in una serie. Le slide stanno in
+una striscia sopra l'anteprima: si duplicano, si creano da qualsiasi modello, si riordinano, si
+eliminano. Ogni slide ha i suoi testi, colori e ritocchi. Regole automatiche: numero nell'etichetta
+(«Libro del mese · 2/5») e freccia o pulsante «avanti» su tutte le slide tranne l'ultima (p. 41).
+Esportazioni della serie: **PNG carosello** (.zip, una immagine per slide, per Instagram),
+**PDF LinkedIn** (una pagina per slide, p. 58), **Video della serie** (un MP4 con le slide in sequenza,
+a taglio netto o in dissolvenza). L'anteprima passa da «Slide» a «Serie intera» per rivedere il video.
+
 **Annulla e ripeti**: le frecce ↶ ↷ in alto (o Ctrl/Cmd+Z e Ctrl/Cmd+Maiusc+Z) tornano indietro e
 avanti tra le modifiche. Un trascinamento intero, una serie di spostamenti con le frecce o una
 digitazione continua contano come un solo passo.
@@ -84,6 +92,9 @@ npm run render -- --project progetto.json --out video.mp4        # progetto salv
 npm run render -- --composition cifra --format ig-story --out cifra-story.mp4
 npm run render -- --project progetto.json --format li-portrait   # stesso progetto, formato LinkedIn
 npm run render -- --project progetto.json --png 90 --out copertina.png
+npm run render -- --project serie.json --out serie.mp4             # serie: tutte le slide in sequenza
+npm run render -- --project serie.json --slide 2 --out slide2.mp4  # una sola slide
+npm run render -- --project serie.json --carosello zip             # PNG del carosello (o pdf)
 ```
 
 Opzioni: `--fps`, `--duration`, `--crf` (qualità, predefinito 16), `--props valori.json` (con
