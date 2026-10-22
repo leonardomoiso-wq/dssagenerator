@@ -1,0 +1,14 @@
+{
+  "name": "DSSA → Compositore",
+  "id": "dssa-compositore-dev",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "devAllowedDomains": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173", "http://127.0.0.1:4173"],
+    "reasoning": "Invia le tavole selezionate al compositore DSSA in esecuzione su questo computer (npm run dev)."
+  }
+}

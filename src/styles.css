@@ -235,3 +235,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tl-snap { position: absolute; top: 0; bottom: 0; width: 1px; background: #00b4ff; pointer-events: none; }
 .stage .canvas-wrap { height: min(calc(100vh - 380px), 1000px); }
 .stage.has-series .canvas-wrap { height: min(calc(100vh - 520px), 1000px); }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #6b6a78; display: inline-block; }
+.dot.on { background: var(--verde); box-shadow: 0 0 0 3px rgba(78,209,166,0.25); }
+.figma .status { font-size: 13px; padding: 8px 12px; border-radius: 10px; background: var(--bg); }
+.figma .status.ok { background: #e6f8f1; color: #0a6b4b; }
+.figma .incoming { border: 1.5px solid var(--viola); border-radius: 12px; padding: 12px 14px; margin: 10px 0; background: #f7f6fd; }
+.figma .incoming ul { margin: 6px 0; padding-left: 18px; font-size: 13px; }
+.figma .incoming small { color: var(--muted); }
+.figma .steps { padding-left: 18px; }
+.figma code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }

@@ -1,7 +1,8 @@
 // Composizione libera a livelli: si combinano simboli, forme, testi, marchio, etichetta,
 // immagini, materia iridescente e freccia, ognuno con il suo ingresso e il suo tempo.
 import { drawArrow, drawDuotone, drawImageCover, drawLabel, drawLockup, drawLogotypeReveal, drawMonogram, labelWidth, lockupSize, logotypeWidth, monogramSize, drawParts, partsClipPath, partStates, breath, SHAPE_ANIM_OPTIONS, SHAPE_LOOP_OPTIONS, type Fill } from '../brand/draw';
-import { FORMS, getSymbol } from '../brand/symbols';
+import { FORMS, getSymbol, partsBounds } from '../brand/symbols';
+import { font } from '../engine/fonts';
 import { drawIridescent } from '../brand/iridescent';
 import { isPaletteColor, PALETTE, resolveColor, TYPE } from '../brand/tokens';
 import { clamp, EASING_OPTIONS, getEasing } from '../engine/anim';
@@ -184,6 +185,30 @@ export const LAYER_TYPES: Record<string, { label: string; fields: Field[] }> = {
   },
 };
 
+// Per i livelli da Figma le misure vengono dalla tavola: i campi di misura si nascondono.
+const FIGMA_HIDDEN = ['dimensione', 'altezza', 'stile', 'corpo', 'larghezza', 'w', 'h', 'carattere'];
+for (const [type, def] of Object.entries(LAYER_TYPES)) {
+  def.fields = def.fields.map((fl) => (FIGMA_HIDDEN.includes(fl.key) && !(type === 'immagine' && (fl.key === 'w' || fl.key === 'h')) ? { ...fl, when: (p: Props) => p.fw === undefined && (!fl.when || fl.when(p)) } : fl));
+  if (type !== 'immagine' && type !== 'iridescente' && type !== 'forma')
+    def.fields.push({
+      type: 'boolean',
+      key: 'usaImmagine',
+      label: 'Usa la grafica esportata da Figma',
+      group: 'Figma',
+      default: false,
+      help: 'Identica a Figma ma animata in blocco. Spento: disegno del compositore, animabile per parti, righe o lettere.',
+      when: (p: Props) => !!p.src && p.fw !== undefined,
+    });
+}
+const IMAGE_ANIMS = [
+  { value: 'dissolvenza', label: 'Dissolvenza' },
+  { value: 'sali', label: 'Sale' },
+  { value: 'scala', label: 'Si avvicina' },
+  { value: 'tendina', label: 'Si scopre da sinistra' },
+  { value: 'nessuna', label: 'Nessuna' },
+];
+LAYER_TYPES.immagine.fields = LAYER_TYPES.immagine.fields.map((fl) => (fl.key === 'anim' && fl.type === 'select' ? { ...fl, options: IMAGE_ANIMS } : fl));
+
 let uid = 0;
 export function newLayer(type: string, overrides: Props = {}): Layer {
   const def = LAYER_TYPES[type];
@@ -195,9 +220,62 @@ export function newLayer(type: string, overrides: Props = {}): Layer {
   };
 }
 
+// --- Livelli arrivati da Figma: riquadro e misure della tavola originale ---
+
+/** Riquadro del livello come in Figma, in pixel del formato. */
+function figmaBox(f: FrameInfo, lp: Props): Box {
+  return { x: (lp.x / 100) * f.width, y: (lp.y / 100) * f.height, w: (lp.fw / 100) * f.width, h: (lp.fh / 100) * f.height };
+}
+
+/** Testo da Figma: stesso corpo, interlinea, spaziatura e riquadro; prima riga come in Figma. */
+function figmaTextLayout(ctx: CanvasRenderingContext2D, f: FrameInfo, lp: Props) {
+  const ft = lp.ft;
+  const k = f.width / (lp.rif || f.width);
+  const size = ft.size * k;
+  const family = lp.carattere === 'testo' ? 'testo' : 'titolo';
+  ctx.save();
+  ctx.font = font(family, ft.weight, size);
+  const m = ctx.measureText('Hg');
+  ctx.restore();
+  const fa = m.fontBoundingBoxAscent || size * 0.8;
+  const fd = m.fontBoundingBoxDescent || size * 0.2;
+  const L = ft.lineHeight ? ft.lineHeight * k : fa + fd;
+  const st = { family, size, weight: ft.weight, lineHeight: L / size, tracking: (ft.letterSpacing || 0) / ft.size } as const;
+  const box = figmaBox(f, lp);
+  const lay = layoutText(ctx, lp.testo, st, ft.autoWidth ? 1e6 : box.w + 2 * k);
+  // Figma centra il carattere nella riga: mezza interlinea sopra, poi l'ascendente.
+  const baseline = box.y + (L - (fa + fd)) / 2 + fa;
+  return { lay, box, capTop: baseline - lay.capHeight, size: ft.size };
+}
+
+/** Grafica esportata da Figma, con un ingresso semplice. */
+function drawFigmaImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, box: Box, anim: string, e: number, out: number, s: number) {
+  ctx.save();
+  const a = anim === 'nessuna' ? 1 : e;
+  ctx.globalAlpha *= a * (1 - out);
+  let { x, y, w, h } = box;
+  if (anim === 'sali') y += (1 - e) * 60 * s;
+  if (anim === 'scala') {
+    const k = 0.9 + 0.1 * e;
+    x += (w * (1 - k)) / 2;
+    y += (h * (1 - k)) / 2;
+    w *= k;
+    h *= k;
+  }
+  if (anim === 'tendina') {
+    ctx.globalAlpha = Math.min(1, ctx.globalAlpha / Math.max(0.001, a));
+    ctx.beginPath();
+    ctx.rect(box.x, box.y, box.w * e, box.h);
+    ctx.clip();
+  }
+  if (img) ctx.drawImage(img, x, y, w, h);
+  ctx.restore();
+}
+
 /** Riquadro di un livello, per la selezione e il trascinamento sull'anteprima. */
 function layerBox(ctx: CanvasRenderingContext2D, f: FrameInfo, layer: Layer, env: Env): Box {
   const lp = layer.props;
+  if (lp.fw !== undefined) return figmaBox(f, lp);
   const s = f.s;
   const X = (lp.x / 100) * f.width;
   const Y = (lp.y / 100) * f.height;
@@ -250,6 +328,16 @@ function drawLayer(ctx: CanvasRenderingContext2D, f: FrameInfo, layer: Layer, en
   const Y = (lp.y / 100) * f.height;
   const color = resolveColor(lp.colore, PALETTE.bianco);
   if (lp.colore && !isPaletteColor(color)) env.warn(`«${layer.name}»: colore fuori dalla palette.`);
+  if (lp.opacita !== undefined) ctx.globalAlpha *= lp.opacita;
+  if (lp.fw !== undefined) {
+    // Livello da Figma: si usa la sua grafica esportata oppure il disegno nativo animabile.
+    const box = figmaBox(f, lp);
+    if (lp.usaImmagine && lp.src && layer.type !== 'immagine') {
+      drawFigmaImage(ctx, env.image(lp.src), box, lp.anim ?? 'dissolvenza', e, out, s);
+      return;
+    }
+    if (drawFigmaNative(ctx, f, layer, env, box, { start, dur, e, out, color })) return;
+  }
   switch (layer.type) {
     case 'simbolo':
     case 'forma': {
@@ -311,6 +399,10 @@ function drawLayer(ctx: CanvasRenderingContext2D, f: FrameInfo, layer: Layer, en
       const img = env.image(lp.src);
       const w = (f.width * lp.w) / 100;
       const h = (f.height * lp.h) / 100;
+      if (lp.anim === 'scala' || lp.anim === 'tendina') {
+        drawFigmaImage(ctx, img, { x: X, y: Y, w, h }, lp.anim, e, out, s);
+        break;
+      }
       const dy = lp.anim === 'sali' ? (1 - e) * 60 * s : 0;
       ctx.save();
       ctx.globalAlpha *= (lp.anim === 'nessuna' ? 1 : e) * (1 - out);
@@ -339,6 +431,65 @@ function drawLayer(ctx: CanvasRenderingContext2D, f: FrameInfo, layer: Layer, en
       break;
     }
   }
+}
+
+/**
+ * Disegno nativo dei livelli da Figma (animabili come quelli del compositore), adattato al
+ * riquadro della tavola. Restituisce false per i tipi che si disegnano come di consueto.
+ */
+function drawFigmaNative(
+  ctx: CanvasRenderingContext2D,
+  f: FrameInfo,
+  layer: Layer,
+  env: Env,
+  box: Box,
+  t: { start: number; dur: number; e: number; out: number; color: string },
+): boolean {
+  const lp = layer.props;
+  const s = f.s;
+  switch (layer.type) {
+    case 'testo': {
+      if (!lp.ft) return false;
+      const { lay, capTop } = figmaTextLayout(ctx, f, lp);
+      if (lp.ft.size < 26) env.warn(`«${layer.name}»: corpo ${Math.round(lp.ft.size)} px, sotto i 26 px minimi dei social (p. 28).`);
+      const ax = lp.allinea === 'center' ? box.x + box.w / 2 : lp.allinea === 'right' ? box.x + box.w : box.x;
+      drawText(ctx, lay, ax, capTop, { color: t.color, align: lp.allinea, anim: lp.anim as TextAnim, frame: f.frame, start: t.start, dur: t.dur, stagger: env.sec(0.08), easing: lp.curva, out: t.out });
+      return true;
+    }
+    case 'simbolo': {
+      // Il simbolo occupa il riquadro dell'istanza di Figma, centrato e senza deformarsi.
+      const parts = getSymbol(lp.simbolo).parts;
+      const b = partsBounds(parts);
+      const size = Math.min(box.w / b.w, box.h / b.h) * 100;
+      const x0 = box.x + (box.w - (b.w * size) / 100) / 2 - (b.x * size) / 100;
+      const y0 = box.y + (box.h - (b.h * size) / 100) / 2 - (b.y * size) / 100;
+      const fill: Fill = { mode: lp.riempimento, color: t.color, iri: { style: lp.iri ?? 'raggiera', time: f.time, seed: lp.seme ?? 3, rays: 0.9 } };
+      const m = { anim: lp.anim, frame: f.frame, fps: f.fps, start: t.start, dur: t.dur, stagger: env.sec(lp.sfalsamento ?? 0.08), easing: lp.curva, loop: lp.loop, out: t.out, beats: env.beats };
+      drawParts(ctx, parts, x0, y0, size, fill, partStates(parts, m), { globalScale: breath(m) });
+      return true;
+    }
+    case 'marchio': {
+      // Altezza della maiuscola dal riquadro: logotipo = riquadro, monogramma e lockup su due righe.
+      const cap = lp.configurazione === 'logotipo' ? box.h : box.h / 2.26;
+      ctx.save();
+      ctx.globalAlpha *= 1 - t.out;
+      const r = (i: number) => getEasing(lp.curva)(clamp((f.frame - t.start - i * env.sec(0.1)) / Math.max(1, t.dur)));
+      if (lp.configurazione === 'monogramma') drawMonogram(ctx, box.x, box.y, cap, t.color, [r(0), r(1)]);
+      else if (lp.configurazione === 'lockup') drawLockup(ctx, box.x, box.y, cap, t.color, [r(0), r(1), r(3)]);
+      else drawLogotypeReveal(ctx, box.x, box.y, cap, t.color, r(0));
+      ctx.restore();
+      return true;
+    }
+    case 'etichetta': {
+      const k = box.h / 55;
+      drawLabel(ctx, lp.testo, box.x + (1 - t.e) * 16 * s, box.y + box.h / 2, k, t.color, t.e * (1 - t.out));
+      return true;
+    }
+    case 'freccia':
+      drawArrow(ctx, box.x, box.y, box.w / 56, t.color, t.e * (1 - t.out));
+      return true;
+  }
+  return false;
 }
 
 /** Disegna una pila di livelli (composizione libera o elementi aggiunti a un modello). */

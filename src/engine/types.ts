@@ -42,6 +42,8 @@ export interface Layer {
   name: string;
   hidden?: boolean;
   props: Props;
+  /** Livello arrivato da Figma: id del nodo, per aggiornare il contenuto senza perdere l'animazione. */
+  figmaId?: string;
 }
 
 // --- Contesto di rendering ---

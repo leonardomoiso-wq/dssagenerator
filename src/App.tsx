@@ -9,6 +9,8 @@ import { envelope } from './engine/audio';
 import { AudioPanel } from './ui/AudioPanel';
 import { MultiExport } from './ui/MultiExport';
 import { Library } from './ui/Library';
+import { FigmaDialog, handleIncoming, reportText, useFigmaBridge } from './ui/FigmaPanel';
+import type { FigmaScene, ImportReport } from './engine/figma';
 import { SeriesBar } from './ui/SeriesBar';
 import { clearTextCaches } from './engine/text';
 import { clearMarkCaches } from './brand/draw';
@@ -49,6 +51,24 @@ export function App() {
   const [codecOk, setCodecOk] = useState<boolean | null>(null);
   const [showFonts, setShowFonts] = useState(false);
   const [showMulti, setShowMulti] = useState(false);
+  const [showFigma, setShowFigma] = useState(false);
+  const [pendingScene, setPendingScene] = useState<FigmaScene | null>(null);
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  const applyImport = (r: ImportReport) => {
+    setProject(r.project);
+    setSelected(null);
+    setFrame(1e9);
+    setShowFigma(false);
+    setPendingScene(null);
+    setNotice(reportText(r) + (r.warnings.length ? ` ${r.warnings.length} avvisi: ${r.warnings[0]}` : ''));
+  };
+  const figmaLive = useFigmaBridge((scene) =>
+    handleIncoming(scene, projectRef.current, applyImport, (sc) => {
+      setPendingScene(sc);
+      setShowFigma(true);
+    }),
+  );
   const [notice, setNotice] = useState<string | null>(null);
   const memory = useRef(new Map<string, Props>());
   const abortRef = useRef<AbortController | null>(null);
@@ -541,6 +561,9 @@ export function App() {
           </div>
         </div>
         <div className="actions">
+          <button className="btn ghost" onClick={() => setShowFigma(true)} title={figmaLive ? 'Collegato al plugin Figma' : 'Importa una tavola da Figma'}>
+            <span className={'dot' + (figmaLive ? ' on' : '')} /> Figma
+          </button>
           <button className={'btn ghost' + (fontsMissing ? ' warn' : '')} onClick={() => setShowFonts(true)}>
             Caratteri {fontsMissing ? '· mancano' : '· ok'}
           </button>
@@ -753,6 +776,9 @@ export function App() {
         </div>
       )}
 
+      {showFigma && (
+        <FigmaDialog live={figmaLive} pending={pendingScene} project={project} onApply={applyImport} onClose={() => (setShowFigma(false), setPendingScene(null))} onNotice={setNotice} />
+      )}
       {showMulti && <MultiExport project={project} onClose={() => setShowMulti(false)} onNotice={setNotice} />}
       {showFonts && <FontsDialog onClose={() => setShowFonts(false)} onNotice={setNotice} />}
 

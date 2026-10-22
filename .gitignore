@@ -5,3 +5,6 @@ out
 # I caratteri Basier Circle e Wotfard sono commerciali: si installano in locale, non si versionano.
 public/fonts/*
 !public/fonts/LEGGIMI.md
+
+# Ultima scena ricevuta dal plugin Figma
+.figma/

@@ -116,6 +116,12 @@ if (args.list) {
   server.close();
   process.exit(0);
 }
+if (project?.kind === 'dssa-figma') {
+  // Scena esportata dal plugin Figma: diventa un progetto con le animazioni di partenza.
+  const r = await page.evaluate((sc) => window.__DSSA__.fromFigma(sc), project);
+  r.warnings.forEach((w) => console.log('Figma:', w));
+  project = r.project;
+}
 if (!project) {
   const c = catalog.find((x) => x.id === args.composition);
   if (!c) {

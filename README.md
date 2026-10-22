@@ -111,6 +111,15 @@ nella griglia 3:4 del profilo).
   previste; disattive, permettono colori liberi, rotazioni e corpi fuori scala. In entrambi i casi il
   pannello segnala ciò che si allontana dal manuale (contrasto, più di un simbolo, corpo sotto 26 px…).
 
+## Da Figma
+
+Contenuti e impaginazione si fanno in Figma, l'animazione qui. Il plugin in `figma-plugin/`
+(istruzioni in `figma-plugin/LEGGIMI.md`) invia le tavole selezionate al compositore avviato con
+`npm run dev`, oppure le scarica come file `.dssa.json`. Simboli, marchio, etichetta e freccia
+arrivano come elementi nativi animabili, i testi come testi con le misure di Figma, il resto come
+immagini. Ogni nuovo invio aggiorna i contenuti e mantiene le animazioni impostate. Più tavole
+diventano una serie. Il pulsante «Figma» mostra lo stato del collegamento e accoglie i file.
+
 ## Esportazione da riga di comando
 
 Usa Chromium senza interfaccia e ffmpeg (H.264 High, yuv420p, BT.709, faststart): stessa resa
@@ -119,6 +128,7 @@ dell'anteprima, qualità controllabile, utile per lotti e per i browser senza H.
 ```bash
 npm run build
 npm run render -- --list                                         # modelli disponibili
+npm run render -- --project tavola.dssa.json --out video.mp4     # tavola esportata dal plugin Figma
 npm run render -- --project progetto.json --out video.mp4        # progetto salvato dal compositore
 npm run render -- --composition cifra --format ig-story --out cifra-story.mp4
 npm run render -- --project progetto.json --format li-portrait   # stesso progetto, formato LinkedIn

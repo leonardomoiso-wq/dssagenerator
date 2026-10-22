@@ -102,6 +102,11 @@ export function moveLayer(l: Layer, ddx: number, ddy: number, W: number, H: numb
 /** Scala un livello cambiando il campo che ne decide la dimensione. Null se non si scala. */
 export function scaleLayer(orig: Layer, k: number): Layer | null {
   const p = orig.props;
+  if (p.fw !== undefined) {
+    // Livello da Figma: si scala il riquadro (e il corpo del testo).
+    const ft = p.ft ? { ...p.ft, size: round(p.ft.size * k, 1), lineHeight: p.ft.lineHeight ? round(p.ft.lineHeight * k, 1) : null, letterSpacing: (p.ft.letterSpacing ?? 0) * k } : undefined;
+    return { ...orig, props: { ...p, fw: round(p.fw * k, 3), fh: round(p.fh * k, 3), ...(p.larghezza ? { larghezza: round(p.fw * k, 3) } : {}), ...(ft ? { ft } : {}) } };
+  }
   switch (orig.type) {
     case 'simbolo':
     case 'forma':

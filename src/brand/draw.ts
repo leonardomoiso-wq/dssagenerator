@@ -220,7 +220,15 @@ export function drawParts(
       ctx.globalAlpha *= alpha;
       ctx.clip(clip);
       ctx.drawImage(sc, 0, 0, W, W, x - pad, y - pad, W, W);
-      for (const i of shadeParts) shade(ctx, parts[i], mats[i], 0.22);
+      // L'ombreggiatura di ogni parte resta dentro la parte.
+      for (const i of shadeParts) {
+        const pth = paths[i];
+        if (!pth) continue;
+        ctx.save();
+        ctx.clip(pth);
+        shade(ctx, parts[i], mats[i], 0.22);
+        ctx.restore();
+      }
       ctx.restore();
     };
     if (settled) paint(union, 1, parts.map((_, i) => i));

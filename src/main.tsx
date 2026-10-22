@@ -4,6 +4,7 @@ import { getFormat } from './brand/tokens';
 import { fontState, loadFonts } from './engine/fonts';
 import { exportCarousel } from './engine/export';
 import { createModel } from './engine/library';
+import { importScene, isScene } from './engine/figma';
 import { durationInFrames, preloadImages, renderFrame } from './engine/render';
 import { renderSeriesFrame, seriesTimeline, slideCount, slideProject, stillFrame, type Timeline } from './engine/series';
 import { defaultsOf, type Project } from './engine/types';
@@ -44,6 +45,12 @@ if (params.has('headless')) {
     },
     /** Crea un modello della casa (per preparare la libreria della squadra da script). */
     model: (p: Project, meta: { name: string; description: string; author?: string }) => createModel(p, { ...meta, images: false, audio: false }),
+    /** Progetto da una scena esportata dal plugin Figma (file .dssa.json). */
+    fromFigma: (scene: unknown) => {
+      if (!isScene(scene)) throw new Error('Non è una scena del plugin DSSA → Compositore');
+      const r = importScene(scene, null);
+      return { project: r.project, warnings: r.warnings };
+    },
     /** Carosello come ZIP di PNG o PDF, in base64. */
     async carousel(kind: 'zip' | 'pdf') {
       if (!project) throw new Error('Nessun progetto');

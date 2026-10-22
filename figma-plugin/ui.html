@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root { --viola: #705ef2; --fucsia: #ff4a75; --verde: #4ed1a6; --nero: #111114; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 14px; font: 12px/1.4 Inter, 'Basier Circle', system-ui, sans-serif; color: var(--figma-color-text, #111114); background: var(--figma-color-bg, #fff); }
+      h1 { font-size: 14px; margin: 0 0 4px; }
+      p { margin: 4px 0 10px; color: var(--figma-color-text-secondary, #666); }
+      ul { margin: 0 0 10px; padding: 0; list-style: none; border: 1px solid var(--figma-color-border, #e5e5e5); border-radius: 8px; max-height: 140px; overflow: auto; }
+      li { padding: 6px 10px; border-bottom: 1px solid var(--figma-color-border, #eee); }
+      li:last-child { border-bottom: 0; }
+      li small { color: var(--figma-color-text-secondary, #888); }
+      .empty { padding: 10px; color: var(--figma-color-text-secondary, #888); }
+      label { display: block; font-weight: 600; margin: 10px 0 4px; }
+      input { width: 100%; padding: 6px 8px; border: 1px solid var(--figma-color-border, #ddd); border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+      .row { display: flex; gap: 8px; margin-top: 12px; }
+      button { flex: 1; border: 0; border-radius: 999px; padding: 9px 12px; font: inherit; font-weight: 600; cursor: pointer; background: var(--viola); color: #fff; }
+      button.ghost { background: transparent; color: inherit; border: 1px solid var(--figma-color-border, #ccc); }
+      button:disabled { opacity: 0.4; cursor: default; }
+      #status { margin-top: 12px; padding: 8px 10px; border-radius: 8px; background: var(--figma-color-bg-secondary, #f4f3f8); min-height: 34px; white-space: pre-wrap; }
+      #status.ok { background: #e6f8f1; color: #0a6b4b; }
+      #status.ko { background: #ffe6ec; color: #a0002a; }
+      .help { margin-top: 12px; font-size: 11px; color: var(--figma-color-text-secondary, #777); }
+      code { background: var(--figma-color-bg-secondary, #f0f0f0); padding: 0 4px; border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <h1>DSSA → Compositore</h1>
+    <p>Le tavole selezionate diventano una composizione da animare. Rinviandole, i contenuti si aggiornano e le animazioni restano.</p>
+    <ul id="frames"><li class="empty">Seleziona una o più tavole.</li></ul>
+    <label for="url">Indirizzo del compositore</label>
+    <input id="url" value="http://localhost:5173" />
+    <div class="row">
+      <button id="send" disabled>Invia al compositore</button>
+      <button id="download" class="ghost" disabled>Scarica .dssa.json</button>
+    </div>
+    <div id="status">Pronto.</div>
+    <div class="help">
+      Il compositore va avviato con <code>npm run dev</code>. In alternativa scarica il file e trascinalo nel compositore (pulsante «Figma»).<br />
+      Nei nomi dei livelli puoi indicare l’ingresso: <code>[parole]</code>, <code>[maschera]</code>, <code>[fermo]</code>, <code>[inizio=1.2]</code>.
+    </div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let selection = [];
+      const setStatus = (text, cls) => {
+        $('status').textContent = text;
+        $('status').className = cls || '';
+      };
+      const busy = (b) => {
+        $('send').disabled = b || !selection.length;
+        $('download').disabled = b || !selection.length;
+      };
+      window.onmessage = async (ev) => {
+        const msg = ev.data.pluginMessage;
+        if (!msg) return;
+        if (msg.type === 'selection') {
+          selection = msg.frames;
+          $('frames').innerHTML = selection.length
+            ? selection.map((f) => `<li><b>${f.name.replace(/</g, '&lt;')}</b> <small>${f.w} × ${f.h} · ${f.children} livelli</small></li>`).join('')
+            : '<li class="empty">Seleziona una o più tavole.</li>';
+          busy(false);
+        }
+        if (msg.type === 'url') $('url').value = msg.url;
+        if (msg.type === 'progress') setStatus(msg.text);
+        if (msg.type === 'error') {
+          setStatus(msg.text, 'ko');
+          busy(false);
+        }
+        if (msg.type === 'scene') {
+          const body = JSON.stringify(msg.scene);
+          const warn = msg.scene.warnings.length ? `\nAvvisi: ${msg.scene.warnings.length} (li vedi nel compositore).` : '';
+          if (msg.then === 'download') {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
+            a.download = (msg.scene.frames[0]?.name || 'tavola').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') + '.dssa.json';
+            a.click();
+            setStatus(`File pronto (${(body.length / 1e6).toFixed(1)} MB). Trascinalo nel compositore.${warn}`, 'ok');
+          } else {
+            const url = $('url').value.replace(/\/+$/, '');
+            parent.postMessage({ pluginMessage: { type: 'save-url', url } }, '*');
+            try {
+              // text/plain evita la richiesta preliminare CORS dall'interfaccia del plugin.
+              const r = await fetch(url + '/api/figma', { method: 'POST', headers: { 'content-type': 'text/plain' }, body });
+              const res = await r.json();
+              if (!res.ok) throw new Error(res.error || 'risposta non valida');
+              setStatus(`Inviate ${res.frames} tavole.${res.viewers ? '' : '\nIl compositore non è aperto nel browser: aprilo e premi «Figma».'}${warn}`, 'ok');
+              parent.postMessage({ pluginMessage: { type: 'notify', text: 'Inviato al compositore DSSA' } }, '*');
+            } catch (e) {
+              setStatus(`Compositore non raggiungibile su ${url}.\nAvvialo con «npm run dev», oppure usa «Scarica .dssa.json».`, 'ko');
+            }
+          }
+          busy(false);
+        }
+      };
+      $('send').onclick = () => {
+        busy(true);
+        setStatus('Preparo le tavole…');
+        parent.postMessage({ pluginMessage: { type: 'collect', then: 'send' } }, '*');
+      };
+      $('download').onclick = () => {
+        busy(true);
+        setStatus('Preparo le tavole…');
+        parent.postMessage({ pluginMessage: { type: 'collect', then: 'download' } }, '*');
+      };
+      parent.postMessage({ pluginMessage: { type: 'ready' } }, '*');
+    </script>
+  </body>
+</html>
